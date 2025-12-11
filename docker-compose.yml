@@ -1,0 +1,37 @@
+services:
+  image-tools-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    image: image-tools-mcp:${VERSION:-latest}
+    container_name: image-tools-mcp
+    stdin_open: true
+    volumes:
+      # Mount common image directories - adjust paths as needed
+      - ${HOME}/Pictures:/images/pictures:ro
+      - ${HOME}/Downloads:/images/downloads:ro
+      - ${HOME}/Desktop:/images/desktop:ro
+      # Mount project directories for diagram work
+      - ${PWD}:/images/project:ro
+    environment:
+      - IMAGE_MCP_LOG_LEVEL=info
+
+  # Universal container with all platform binaries
+  image-tools-mcp-universal:
+    build:
+      context: .
+      dockerfile: Dockerfile.universal
+      args:
+        VERSION: ${VERSION:-dev}
+    image: image-tools-mcp:universal-${VERSION:-latest}
+    container_name: image-tools-mcp-universal
+    stdin_open: true
+    volumes:
+      - ${HOME}/Pictures:/images/pictures:ro
+      - ${HOME}/Downloads:/images/downloads:ro
+      - ${PWD}:/images/project:ro
+    environment:
+      - IMAGE_MCP_LOG_LEVEL=info

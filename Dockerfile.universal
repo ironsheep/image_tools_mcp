@@ -1,0 +1,44 @@
+# Universal container with all platform binaries
+# This container includes binaries for all supported platforms
+# A router script auto-detects the architecture and runs the right binary
+
+FROM alpine:3.20
+
+ARG VERSION=dev
+
+# Install Tesseract OCR, language data, and Node.js
+RUN apk add --no-cache \
+    tesseract-ocr \
+    tesseract-ocr-data-eng \
+    ca-certificates \
+    nodejs \
+    npm
+
+# Create non-root user
+RUN adduser -D -g '' appuser
+
+WORKDIR /app
+
+# Create directories for binaries
+RUN mkdir -p /app/bin /images && chown -R appuser:appuser /app /images
+
+# Copy router script
+COPY scripts/router.sh /app/router.sh
+RUN chmod +x /app/router.sh
+
+# Copy all platform binaries (these are built by CI and placed in dist/)
+# The CI workflow builds all binaries before building this container
+COPY dist/image-mcp-linux-amd64 /app/bin/
+COPY dist/image-mcp-linux-arm64 /app/bin/
+# Note: Darwin and Windows binaries are included for completeness
+# but won't run in this Alpine container - they're for extraction
+COPY dist/image-mcp-darwin-amd64 /app/bin/
+COPY dist/image-mcp-darwin-arm64 /app/bin/
+COPY dist/image-mcp-windows-amd64.exe /app/bin/
+COPY dist/image-mcp-windows-arm64.exe /app/bin/
+
+RUN chmod +x /app/bin/*
+
+USER appuser
+
+ENTRYPOINT ["/app/router.sh"]

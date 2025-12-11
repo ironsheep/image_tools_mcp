@@ -1,0 +1,52 @@
+{
+  "name": "Image MCP Development",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "ms-azuretools.vscode-docker",
+        "streetsidesoftware.code-spell-checker",
+        "eamodio.gitlens",
+        "usernamehw.errorlens",
+        "tamasfe.even-better-toml",
+        "redhat.vscode-yaml"
+      ],
+      "settings": {
+        "go.toolsManagement.autoUpdate": true,
+        "go.useLanguageServer": true,
+        "go.lintTool": "golangci-lint",
+        "go.lintOnSave": "package",
+        "go.formatTool": "goimports",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": "explicit"
+        },
+        "[go]": {
+          "editor.defaultFormatter": "golang.go"
+        }
+      }
+    }
+  },
+  "postCreateCommand": "go mod download && go install golang.org/x/tools/gopls@latest && go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest",
+  "remoteUser": "vscode",
+  "mounts": [
+    "source=${localWorkspaceFolder}/testdata,target=/images/testdata,type=bind",
+    "source=${localEnv:HOME}/Pictures,target=/images/pictures,type=bind,readonly",
+    "source=${localEnv:HOME}/Downloads,target=/images/downloads,type=bind,readonly"
+  ],
+  "runArgs": ["--init"],
+  "forwardPorts": [],
+  "containerEnv": {
+    "IMAGE_MCP_LOG_LEVEL": "debug"
+  }
+}

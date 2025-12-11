@@ -30,3 +30,13 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Project binary
+image-tools-mcp
+
+# Distribution directory
+dist/
+
+# Temporary files
+*.tmp
+*.temp
