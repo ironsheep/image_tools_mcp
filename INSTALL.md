@@ -106,15 +106,38 @@ For adding image analysis to existing Docker containers, use the container-tools
 
 ### 1. Download Container Tools Package
 
-Download `container-tools-v1.0.0.tar.gz` from the [Releases](https://github.com/ironsheep/image_tools_mcp/releases) page.
+Download `image-tools-mcp-v1.0.0.tar.gz` from the [Releases](https://github.com/ironsheep/image_tools_mcp/releases) page.
 
 ### 2. Extract and Install
 
-```bash
-tar -xzf container-tools-v1.0.0.tar.gz
-cd container-tools-v1.0.0
+**Option A: Using the install script (recommended for /opt/container-tools)**
 
-# Copy binary to your container or image
+The package includes an install script that safely installs alongside other MCP tools:
+
+```bash
+tar -xzf image-tools-mcp-v1.0.0.tar.gz
+cd image-tools-mcp-v1.0.0
+sudo ./install.sh
+```
+
+The install script will:
+- Install to `/opt/container-tools/opt/image-tools-mcp/`
+- Back up any existing installation before overwriting
+- Merge into existing `/opt/container-tools/etc/mcp.json` (preserves other MCP entries)
+- Create the config file if it doesn't exist
+
+After installation, verify with:
+```bash
+/opt/container-tools/opt/image-tools-mcp/bin/image-tools-mcp --version
+```
+
+**Option B: Manual copy to custom location**
+
+```bash
+tar -xzf image-tools-mcp-v1.0.0.tar.gz
+cd image-tools-mcp-v1.0.0
+
+# Copy binary to your preferred location
 cp opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
 ```
 
@@ -123,7 +146,7 @@ cp opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
 **Basic (AMD64 with embedded OCR):**
 ```dockerfile
 # Add to an existing container - OCR works out of the box
-COPY container-tools-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
+COPY image-tools-mcp-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
 ```
 
 **Debian/Ubuntu-based containers (with Tesseract for ARM64):**
@@ -134,7 +157,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
-COPY container-tools-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
+COPY image-tools-mcp-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
 ```
 
 **Alpine-based containers:**
@@ -142,7 +165,7 @@ COPY container-tools-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/b
 # Install Tesseract for OCR support
 RUN apk add --no-cache tesseract-ocr tesseract-ocr-data-eng
 
-COPY container-tools-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
+COPY image-tools-mcp-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
 ```
 
 **Red Hat/Fedora-based containers:**
@@ -150,7 +173,7 @@ COPY container-tools-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/b
 # Install Tesseract for OCR support
 RUN dnf install -y tesseract tesseract-langpack-eng && dnf clean all
 
-COPY container-tools-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
+COPY image-tools-mcp-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
 ```
 
 **Amazon Linux 2:**
@@ -160,7 +183,7 @@ RUN amazon-linux-extras install epel -y && \
     yum install -y tesseract tesseract-langpack-eng && \
     yum clean all
 
-COPY container-tools-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
+COPY image-tools-mcp-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
 ```
 
 **Multi-stage build (minimal final image):**
