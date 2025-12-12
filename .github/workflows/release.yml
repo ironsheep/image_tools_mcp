@@ -743,12 +743,12 @@ jobs:
           name: container-tools-package-signed
           path: package/*.tar.gz
 
-  # Create GitHub Release (only after all builds and tests pass)
+  # Create GitHub Release (only after all builds, tests, and optional signing pass)
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [assemble-package]
-    if: ${{ always() && needs.assemble-package.result == 'success' }}
+    needs: [assemble-package, sign-macos]
+    if: ${{ always() && needs.assemble-package.result == 'success' && (needs.sign-macos.result == 'success' || needs.sign-macos.result == 'skipped') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
