@@ -354,17 +354,17 @@ jobs:
 
           # Test image_load
           $json = '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"image_load","arguments":{"path":"' + $testImage + '"}}}'
-          $response = ($json | & "./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-windows-amd64.exe") -join "`n"
+          $response = ($json | & "./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-windows-amd64.exe") | Out-String
           Write-Host "image_load response: $response"
-          if ($response -notlike '*"width"*') {
+          if ($response -notmatch 'width') {
             throw "image_load failed - width not found in response"
           }
 
           # Test image_sample_color
           $json = '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"image_sample_color","arguments":{"path":"' + $testImage + '","x":10,"y":10}}}'
-          $response = ($json | & "./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-windows-amd64.exe") -join "`n"
+          $response = ($json | & "./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-windows-amd64.exe") | Out-String
           Write-Host "image_sample_color response: $response"
-          if ($response -notlike '*"hex"*') {
+          if ($response -notmatch 'hex') {
             throw "image_sample_color failed - hex not found in response"
           }
 
@@ -374,9 +374,9 @@ jobs:
           $testImage = (Get-Location).Path + "/testdata/simple_diagram.png"
           $testImage = $testImage -replace '\\', '/'
           $json = '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"image_ocr_full","arguments":{"path":"' + $testImage + '","language":"eng"}}}'
-          $response = ($json | & "./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-windows-amd64.exe") -join "`n"
+          $response = ($json | & "./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-windows-amd64.exe") | Out-String
           Write-Host "OCR response: $response"
-          if ($response -like "*tesseract not found*" -or $response -like "*UB-Mannheim*") {
+          if ($response -match "tesseract not found" -or $response -match "UB-Mannheim") {
             Write-Host "OK: OCR correctly reports tesseract not installed"
           } else {
             throw "OCR should report tesseract not found on Windows without tesseract"
