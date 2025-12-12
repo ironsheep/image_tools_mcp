@@ -92,6 +92,7 @@ jobs:
         with:
           name: binary-linux-amd64
           path: image-tools-mcp-v*-linux-amd64
+          retention-days: 1
 
   # Build Linux ARM64 (cross-compiled, no CGO - uses CLI fallback for OCR)
   # Note: ARM64 runners not available for private repos, so we cross-compile
@@ -138,6 +139,7 @@ jobs:
         with:
           name: binary-linux-arm64
           path: image-tools-mcp-v*-linux-arm64
+          retention-days: 1
 
   # Build and test macOS AMD64
   build-darwin-amd64:
@@ -217,6 +219,7 @@ jobs:
         with:
           name: binary-darwin-amd64
           path: image-tools-mcp-v*-darwin-amd64
+          retention-days: 1
 
   # Build and test macOS ARM64
   build-darwin-arm64:
@@ -296,6 +299,7 @@ jobs:
         with:
           name: binary-darwin-arm64
           path: image-tools-mcp-v*-darwin-arm64
+          retention-days: 1
 
   # Build and test Windows AMD64
   build-windows-amd64:
@@ -387,6 +391,7 @@ jobs:
         with:
           name: binary-windows-amd64
           path: image-tools-mcp-v*-windows-amd64.exe
+          retention-days: 1
 
   # Build and test Windows ARM64
   build-windows-arm64:
@@ -439,6 +444,7 @@ jobs:
         with:
           name: binary-windows-arm64
           path: image-tools-mcp-v*-windows-arm64.exe
+          retention-days: 1
 
   # Assemble container-tools package (only after all builds pass)
   assemble-package:
@@ -644,6 +650,7 @@ jobs:
         with:
           name: container-tools-package
           path: image-tools-mcp-v*.tar.gz
+          retention-days: 1
 
   # Sign macOS binaries (optional)
   sign-macos:
