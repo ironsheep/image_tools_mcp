@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/ironsheep/image_tools_mcp/blob/main/DOCs/API.md
+    about: Check the API documentation before reporting issues
+  - name: Installation Guide
+    url: https://github.com/ironsheep/image_tools_mcp/blob/main/INSTALL.md
+    about: Installation and setup instructions
