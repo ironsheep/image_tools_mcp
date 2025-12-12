@@ -754,72 +754,88 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Get version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
       - name: Download unsigned container-tools package
         uses: actions/download-artifact@v4
         with:
           name: container-tools-package
-          path: release/
+          path: packages/
 
       - name: Download unsigned standalone binaries
         uses: actions/download-artifact@v4
         with:
           name: standalone-binaries
-          path: standalone/
+          path: binaries/
 
       - name: Download signed container-tools package (if available)
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
           name: container-tools-package-signed
-          path: release-signed/
+          path: packages-signed/
 
       - name: Download signed standalone binaries (if available)
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
           name: standalone-binaries-signed
-          path: standalone-signed/
+          path: binaries-signed/
 
       - name: Use signed artifacts if available
         run: |
-          if [ -d "release-signed" ] && [ "$(ls -A release-signed 2>/dev/null)" ]; then
+          # Check if signed container-tools package exists
+          if [ -d "packages-signed" ] && [ "$(ls -A packages-signed 2>/dev/null)" ]; then
             echo "Using signed container-tools package"
-            rm -rf release/*
-            mv release-signed/* release/
+            rm -rf packages/*
+            mv packages-signed/* packages/
             echo "SIGNED=true" >> $GITHUB_ENV
           else
             echo "Using unsigned container-tools package"
             echo "SIGNED=false" >> $GITHUB_ENV
           fi
 
-          if [ -d "standalone-signed" ] && [ "$(ls -A standalone-signed 2>/dev/null)" ]; then
-            echo "Using signed standalone binaries"
-            rm -rf standalone/*
-            mv standalone-signed/* standalone/
+          # Check if signed standalone binaries exist (darwin binaries will be signed)
+          if [ -d "binaries-signed" ] && [ "$(ls -A binaries-signed 2>/dev/null)" ]; then
+            echo "Using signed darwin binaries"
+            # Only replace darwin binaries with signed versions
+            for signed in binaries-signed/*darwin*; do
+              if [ -f "$signed" ]; then
+                cp "$signed" binaries/
+              fi
+            done
           fi
 
-      - name: Prepare standalone downloads
+      - name: Create individual binary archives
         run: |
-          mkdir -p release/standalone
-          cd standalone
+          mkdir -p release
+          cd binaries
           for binary in *; do
             if [[ "$binary" == *.exe ]]; then
-              zip "../release/standalone/${binary%.exe}.zip" "$binary"
+              # Windows: create .zip
+              zip "../release/${binary%.exe}.zip" "$binary"
             else
-              tar -czf "../release/standalone/${binary}.tar.gz" "$binary"
+              # Linux/macOS: create .tar.gz
+              tar -czf "../release/${binary}.tar.gz" "$binary"
             fi
           done
+          # Move container-tools package to release
+          mv ../packages/*.tar.gz ../release/
+
+      - name: List release artifacts
+        run: |
+          echo "Release artifacts:"
+          ls -la release/
 
       - name: Generate checksums
         run: |
           cd release
-          sha256sum *.tar.gz > checksums.txt
-          cd standalone
-          sha256sum * >> ../checksums.txt
-
-      - name: Get version
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          sha256sum * > checksums.txt
+          echo ""
+          echo "Checksums:"
+          cat checksums.txt
 
       - name: Check if signed
         id: check-signed
@@ -837,9 +853,7 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            release/*.tar.gz
-            release/standalone/*
-            release/checksums.txt
+            release/*
           body: |
             ## Image Tools MCP ${{ steps.version.outputs.VERSION }}
 
