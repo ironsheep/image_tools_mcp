@@ -645,23 +645,23 @@ jobs:
           name: container-tools-package
           path: image-tools-mcp-v*.tar.gz
 
-      - name: Upload standalone binaries
-        uses: actions/upload-artifact@v4
-        with:
-          name: standalone-binaries
-          path: binaries/
-
   # Sign macOS binaries (optional)
   sign-macos:
     name: Sign macOS Binaries
     runs-on: macos-latest
-    needs: assemble-package
+    needs: [build-darwin-amd64, build-darwin-arm64, assemble-package]
     if: ${{ vars.MACOS_SIGNING_ENABLED == 'true' }}
     steps:
-      - name: Download standalone binaries
+      - name: Download darwin-amd64 binary
         uses: actions/download-artifact@v4
         with:
-          name: standalone-binaries
+          name: binary-darwin-amd64
+          path: binaries/
+
+      - name: Download darwin-arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-darwin-arm64
           path: binaries/
 
       - name: Download container-tools package
@@ -732,11 +732,17 @@ jobs:
           cp ../binaries/*darwin* "${PACKAGE_DIR}/opt/image-tools-mcp/bin/platforms/"
           tar -czf "${PACKAGE_DIR%/}.tar.gz" "$PACKAGE_DIR"
 
-      - name: Upload signed standalone binaries
+      - name: Upload signed darwin-amd64 binary
         uses: actions/upload-artifact@v4
         with:
-          name: standalone-binaries-signed
-          path: binaries/
+          name: binary-darwin-amd64-signed
+          path: binaries/*darwin-amd64*
+
+      - name: Upload signed darwin-arm64 binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-darwin-arm64-signed
+          path: binaries/*darwin-arm64*
 
       - name: Upload signed container-tools package
         uses: actions/upload-artifact@v4
@@ -758,17 +764,64 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Download unsigned container-tools package
+      # Download all individual platform binaries
+      - name: Download linux-amd64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-linux-amd64
+          path: binaries/
+
+      - name: Download linux-arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-linux-arm64
+          path: binaries/
+
+      - name: Download darwin-amd64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-darwin-amd64
+          path: binaries/
+
+      - name: Download darwin-arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-darwin-arm64
+          path: binaries/
+
+      - name: Download windows-amd64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-windows-amd64
+          path: binaries/
+
+      - name: Download windows-arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-windows-arm64
+          path: binaries/
+
+      # Download container-tools package (unsigned)
+      - name: Download container-tools package
         uses: actions/download-artifact@v4
         with:
           name: container-tools-package
           path: packages/
 
-      - name: Download unsigned standalone binaries
+      # Download signed artifacts if available
+      - name: Download signed darwin-amd64 binary (if available)
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
-          name: standalone-binaries
-          path: binaries/
+          name: binary-darwin-amd64-signed
+          path: binaries-signed/
+
+      - name: Download signed darwin-arm64 binary (if available)
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: binary-darwin-arm64-signed
+          path: binaries-signed/
 
       - name: Download signed container-tools package (if available)
         uses: actions/download-artifact@v4
@@ -776,13 +829,6 @@ jobs:
         with:
           name: container-tools-package-signed
           path: packages-signed/
-
-      - name: Download signed standalone binaries (if available)
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: standalone-binaries-signed
-          path: binaries-signed/
 
       - name: Use signed artifacts if available
         run: |
@@ -797,12 +843,12 @@ jobs:
             echo "SIGNED=false" >> $GITHUB_ENV
           fi
 
-          # Check if signed standalone binaries exist (darwin binaries will be signed)
+          # Replace darwin binaries with signed versions if available
           if [ -d "binaries-signed" ] && [ "$(ls -A binaries-signed 2>/dev/null)" ]; then
             echo "Using signed darwin binaries"
-            # Only replace darwin binaries with signed versions
-            for signed in binaries-signed/*darwin*; do
+            for signed in binaries-signed/*; do
               if [ -f "$signed" ]; then
+                echo "  Replacing with signed: $(basename $signed)"
                 cp "$signed" binaries/
               fi
             done
