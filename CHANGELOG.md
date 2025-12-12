@@ -42,6 +42,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MCP protocol version 2024-11-05
 - JSON-RPC 2.0 over stdio
 
+### Test Coverage
+
+- **Overall**: 87.1%
+- `internal/imaging`: 97.1% - Image loading, cropping, color sampling, measurement
+- `internal/detection`: 96.8% - Shape detection (rectangles, lines, circles, text regions)
+- `internal/server`: 77.1% - MCP protocol handling and tool execution
+- `internal/ocr`: 67.7% - Tesseract OCR integration
+
 ### Platform Notes
 
 - **Linux AMD64**: Includes embedded Tesseract OCR - no additional setup required for full functionality

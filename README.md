@@ -81,6 +81,7 @@ Once configured, Claude can use tools like:
 - **[INSTALL.md](INSTALL.md)** - Detailed installation for all platforms, Tesseract setup, container deployment
 - **[DOCs/API.md](DOCs/API.md)** - Complete API reference for all 18 tools
 - **[CHANGELOG.md](CHANGELOG.md)** - Version history and release notes
+- **[COVERAGE.md](COVERAGE.md)** - Test coverage report (87.1% overall)
 
 ## Example Workflow: Recreating a Diagram
 
