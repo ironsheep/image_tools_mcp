@@ -59,19 +59,24 @@ jobs:
 
       - name: Smoke test - Image operations
         run: |
+          TEST_IMAGE="$(pwd)/testdata/simple_diagram.png"
+
           # Test image_load
-          RESPONSE=$(echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"image_load","arguments":{"path":"testdata/simple_diagram.png"}}}' | \
+          RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"image_load\",\"arguments\":{\"path\":\"${TEST_IMAGE}\"}}}" | \
             timeout 10 ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-linux-amd64)
+          echo "image_load response: $RESPONSE"
           echo "$RESPONSE" | grep -q '"width"'
 
           # Test image_sample_color
-          RESPONSE=$(echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"image_sample_color","arguments":{"path":"testdata/simple_diagram.png","x":10,"y":10}}}' | \
+          RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"image_sample_color\",\"arguments\":{\"path\":\"${TEST_IMAGE}\",\"x\":10,\"y\":10}}}" | \
             timeout 10 ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-linux-amd64)
+          echo "image_sample_color response: $RESPONSE"
           echo "$RESPONSE" | grep -q '"hex"'
 
       - name: Smoke test - OCR (should work with embedded tesseract)
         run: |
-          RESPONSE=$(echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"image_ocr_full","arguments":{"path":"testdata/simple_diagram.png","language":"eng"}}}' | \
+          TEST_IMAGE="$(pwd)/testdata/simple_diagram.png"
+          RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"image_ocr_full\",\"arguments\":{\"path\":\"${TEST_IMAGE}\",\"language\":\"eng\"}}}" | \
             timeout 30 ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-linux-amd64)
           echo "OCR Response: $RESPONSE"
           # Should NOT contain "tesseract not found"
@@ -136,19 +141,24 @@ jobs:
 
       - name: Smoke test - Image operations
         run: |
+          TEST_IMAGE="$(pwd)/testdata/simple_diagram.png"
+
           # Test image_load
-          RESPONSE=$(echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"image_load","arguments":{"path":"testdata/simple_diagram.png"}}}' | \
+          RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"image_load\",\"arguments\":{\"path\":\"${TEST_IMAGE}\"}}}" | \
             timeout 10 ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-linux-arm64)
+          echo "image_load response: $RESPONSE"
           echo "$RESPONSE" | grep -q '"width"'
 
           # Test image_sample_color
-          RESPONSE=$(echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"image_sample_color","arguments":{"path":"testdata/simple_diagram.png","x":10,"y":10}}}' | \
+          RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"image_sample_color\",\"arguments\":{\"path\":\"${TEST_IMAGE}\",\"x\":10,\"y\":10}}}" | \
             timeout 10 ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-linux-arm64)
+          echo "image_sample_color response: $RESPONSE"
           echo "$RESPONSE" | grep -q '"hex"'
 
       - name: Smoke test - OCR (should work with embedded tesseract)
         run: |
-          RESPONSE=$(echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"image_ocr_full","arguments":{"path":"testdata/simple_diagram.png","language":"eng"}}}' | \
+          TEST_IMAGE="$(pwd)/testdata/simple_diagram.png"
+          RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"image_ocr_full\",\"arguments\":{\"path\":\"${TEST_IMAGE}\",\"language\":\"eng\"}}}" | \
             timeout 30 ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-linux-arm64)
           echo "OCR Response: $RESPONSE"
           # Should NOT contain "tesseract not found"
@@ -208,19 +218,24 @@ jobs:
 
       - name: Smoke test - Image operations
         run: |
+          TEST_IMAGE="$(pwd)/testdata/simple_diagram.png"
+
           # Test image_load
-          RESPONSE=$(echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"image_load","arguments":{"path":"testdata/simple_diagram.png"}}}' | \
+          RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"image_load\",\"arguments\":{\"path\":\"${TEST_IMAGE}\"}}}" | \
             ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-darwin-amd64 2>&1 | head -20)
+          echo "image_load response: $RESPONSE"
           echo "$RESPONSE" | grep -q '"width"'
 
           # Test image_sample_color
-          RESPONSE=$(echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"image_sample_color","arguments":{"path":"testdata/simple_diagram.png","x":10,"y":10}}}' | \
+          RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"image_sample_color\",\"arguments\":{\"path\":\"${TEST_IMAGE}\",\"x\":10,\"y\":10}}}" | \
             ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-darwin-amd64 2>&1 | head -20)
+          echo "image_sample_color response: $RESPONSE"
           echo "$RESPONSE" | grep -q '"hex"'
 
       - name: Smoke test - OCR (should return install instructions)
         run: |
-          RESPONSE=$(echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"image_ocr_full","arguments":{"path":"testdata/simple_diagram.png","language":"eng"}}}' | \
+          TEST_IMAGE="$(pwd)/testdata/simple_diagram.png"
+          RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"image_ocr_full\",\"arguments\":{\"path\":\"${TEST_IMAGE}\",\"language\":\"eng\"}}}" | \
             ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-darwin-amd64 2>&1 | head -20)
           echo "OCR Response: $RESPONSE"
           # Should contain "tesseract not found" or "brew install"
@@ -282,19 +297,24 @@ jobs:
 
       - name: Smoke test - Image operations
         run: |
+          TEST_IMAGE="$(pwd)/testdata/simple_diagram.png"
+
           # Test image_load
-          RESPONSE=$(echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"image_load","arguments":{"path":"testdata/simple_diagram.png"}}}' | \
+          RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"image_load\",\"arguments\":{\"path\":\"${TEST_IMAGE}\"}}}" | \
             ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-darwin-arm64 2>&1 | head -20)
+          echo "image_load response: $RESPONSE"
           echo "$RESPONSE" | grep -q '"width"'
 
           # Test image_sample_color
-          RESPONSE=$(echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"image_sample_color","arguments":{"path":"testdata/simple_diagram.png","x":10,"y":10}}}' | \
+          RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"image_sample_color\",\"arguments\":{\"path\":\"${TEST_IMAGE}\",\"x\":10,\"y\":10}}}" | \
             ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-darwin-arm64 2>&1 | head -20)
+          echo "image_sample_color response: $RESPONSE"
           echo "$RESPONSE" | grep -q '"hex"'
 
       - name: Smoke test - OCR (should return install instructions)
         run: |
-          RESPONSE=$(echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"image_ocr_full","arguments":{"path":"testdata/simple_diagram.png","language":"eng"}}}' | \
+          TEST_IMAGE="$(pwd)/testdata/simple_diagram.png"
+          RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"image_ocr_full\",\"arguments\":{\"path\":\"${TEST_IMAGE}\",\"language\":\"eng\"}}}" | \
             ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-darwin-arm64 2>&1 | head -20)
           echo "OCR Response: $RESPONSE"
           # Should contain "tesseract not found" or "brew install"
@@ -345,10 +365,10 @@ jobs:
       - name: Smoke test - Version
         shell: pwsh
         run: |
-          $output = & "./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-windows-amd64.exe" --version
-          Write-Host $output
-          if ($output -notmatch "${{ steps.version.outputs.VERSION }}") {
-            throw "Version mismatch"
+          $output = & "./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-windows-amd64.exe" --version 2>&1 | Out-String
+          Write-Host "Version output: $output"
+          if ($output -notlike "*${{ steps.version.outputs.VERSION }}*") {
+            throw "Version mismatch: expected ${{ steps.version.outputs.VERSION }} in output"
           }
 
       - name: Smoke test - MCP tools/list
@@ -363,15 +383,20 @@ jobs:
       - name: Smoke test - Image operations
         shell: pwsh
         run: |
+          $testImage = (Get-Location).Path + "/testdata/simple_diagram.png"
+          $testImage = $testImage -replace '\\', '/'
+
           # Test image_load
-          $response = '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"image_load","arguments":{"path":"testdata/simple_diagram.png"}}}' | & "./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-windows-amd64.exe"
+          $json = '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"image_load","arguments":{"path":"' + $testImage + '"}}}'
+          $response = $json | & "./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-windows-amd64.exe"
           Write-Host "image_load response: $response"
           if ($response -notmatch '"width"') {
             throw "image_load failed"
           }
 
           # Test image_sample_color
-          $response = '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"image_sample_color","arguments":{"path":"testdata/simple_diagram.png","x":10,"y":10}}}' | & "./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-windows-amd64.exe"
+          $json = '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"image_sample_color","arguments":{"path":"' + $testImage + '","x":10,"y":10}}}'
+          $response = $json | & "./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-windows-amd64.exe"
           Write-Host "image_sample_color response: $response"
           if ($response -notmatch '"hex"') {
             throw "image_sample_color failed"
@@ -380,7 +405,10 @@ jobs:
       - name: Smoke test - OCR (should return install instructions)
         shell: pwsh
         run: |
-          $response = '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"image_ocr_full","arguments":{"path":"testdata/simple_diagram.png","language":"eng"}}}' | & "./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-windows-amd64.exe"
+          $testImage = (Get-Location).Path + "/testdata/simple_diagram.png"
+          $testImage = $testImage -replace '\\', '/'
+          $json = '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"image_ocr_full","arguments":{"path":"' + $testImage + '","language":"eng"}}}'
+          $response = $json | & "./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-windows-amd64.exe"
           Write-Host "OCR response: $response"
           if ($response -match "tesseract not found" -or $response -match "UB-Mannheim") {
             Write-Host "OK: OCR correctly reports tesseract not installed"
