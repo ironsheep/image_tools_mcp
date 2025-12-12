@@ -717,8 +717,9 @@ jobs:
               --password "$APPLE_ID_PASSWORD" \
               --team-id "$APPLE_TEAM_ID" \
               --wait
-            unzip -o "${binary}.zip"
-            xcrun stapler staple "$binary"
+            # Note: stapler doesn't work on standalone binaries, only on .app/.pkg/.dmg
+            # Notarization alone is sufficient - Apple records the notarization and
+            # Gatekeeper will check it online when the binary is first run
             rm "${binary}.zip"
           done
 
