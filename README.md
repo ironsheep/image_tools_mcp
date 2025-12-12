@@ -39,7 +39,8 @@ Download the binary for your platform from the [Releases](https://github.com/iro
 | Linux ARM64 | `image-tools-mcp-v*-linux-arm64` | Requires Tesseract |
 | macOS Intel | `image-tools-mcp-v*-darwin-amd64` | Requires Tesseract |
 | macOS Apple Silicon | `image-tools-mcp-v*-darwin-arm64` | Requires Tesseract |
-| Windows | `image-tools-mcp-v*-windows-amd64.exe` | Requires Tesseract |
+| Windows AMD64 | `image-tools-mcp-v*-windows-amd64.exe` | Requires Tesseract |
+| Windows ARM64 | `image-tools-mcp-v*-windows-arm64.exe` | Requires Tesseract |
 
 See [INSTALL.md](INSTALL.md) for detailed setup instructions, including Tesseract installation.
 
