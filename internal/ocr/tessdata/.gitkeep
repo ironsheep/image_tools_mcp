@@ -1,0 +1,3 @@
+# This directory contains Tesseract training data files for OCR.
+# Files are downloaded at build time by scripts/ensure-tessdata.sh
+# See DOCs/TODO_STATIC_OCR_ALL_PLATFORMS.md for details.

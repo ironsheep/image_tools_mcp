@@ -42,3 +42,9 @@ dist/
 *.temp
 .claude/settings.local.json
 .vscode/settings.local.json
+
+# Build outputs
+builds/
+
+# Tessdata files (downloaded at build time by scripts/ensure-tessdata.sh)
+internal/ocr/tessdata/*.traineddata
