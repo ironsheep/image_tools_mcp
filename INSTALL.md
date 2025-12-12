@@ -100,7 +100,9 @@ You should see version information if installed correctly.
 
 ## Container Deployment
 
-For adding image analysis to existing Docker containers, use the container-tools package:
+For adding image analysis to existing Docker containers, use the container-tools package.
+
+**Note:** The container-tools package includes the Linux AMD64 binary with embedded OCR. If you need OCR on ARM64 containers, you'll need to install Tesseract separately (see examples below).
 
 ### 1. Download Container Tools Package
 
@@ -113,17 +115,65 @@ tar -xzf container-tools-v1.0.0.tar.gz
 cd container-tools-v1.0.0
 
 # Copy binary to your container or image
-# The package includes the Linux AMD64 binary with embedded OCR
+cp opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
 ```
 
-### 3. Dockerfile Example
+### 3. Dockerfile Examples
 
+**Basic (AMD64 with embedded OCR):**
 ```dockerfile
-# Add to an existing container
+# Add to an existing container - OCR works out of the box
 COPY container-tools-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
+```
 
-# Or in a multi-stage build
-COPY --from=image-tools /opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
+**Debian/Ubuntu-based containers (with Tesseract for ARM64):**
+```dockerfile
+# Install Tesseract for OCR support
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY container-tools-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
+```
+
+**Alpine-based containers:**
+```dockerfile
+# Install Tesseract for OCR support
+RUN apk add --no-cache tesseract-ocr tesseract-ocr-data-eng
+
+COPY container-tools-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
+```
+
+**Red Hat/Fedora-based containers:**
+```dockerfile
+# Install Tesseract for OCR support
+RUN dnf install -y tesseract tesseract-langpack-eng && dnf clean all
+
+COPY container-tools-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
+```
+
+**Amazon Linux 2:**
+```dockerfile
+# Install Tesseract for OCR support
+RUN amazon-linux-extras install epel -y && \
+    yum install -y tesseract tesseract-langpack-eng && \
+    yum clean all
+
+COPY container-tools-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
+```
+
+**Multi-stage build (minimal final image):**
+```dockerfile
+FROM debian:bookworm-slim
+
+# Install only runtime dependencies for Tesseract
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
 ```
 
 ## MCP Client Configuration
