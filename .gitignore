@@ -41,3 +41,4 @@ dist/
 *.tmp
 *.temp
 .claude/settings.local.json
+.vscode/settings.local.json
