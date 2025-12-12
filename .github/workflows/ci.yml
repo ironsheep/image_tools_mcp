@@ -19,6 +19,14 @@ jobs:
         with:
           go-version: '1.22'
 
+      - name: Install Tesseract dependencies (for CGO linting)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libtesseract-dev libleptonica-dev
+
+      - name: Download tessdata for embedding
+        run: ./scripts/ensure-tessdata.sh
+
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v4
         with:
@@ -40,7 +48,10 @@ jobs:
       - name: Install Tesseract
         run: |
           sudo apt-get update
-          sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-eng libtesseract-dev libleptonica-dev
+
+      - name: Download tessdata for embedding
+        run: ./scripts/ensure-tessdata.sh
 
       - name: Download dependencies
         run: go mod download
