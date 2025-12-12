@@ -65,23 +65,15 @@ jobs:
           RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"image_load\",\"arguments\":{\"path\":\"${TEST_IMAGE}\"}}}" | \
             timeout 10 ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-linux-amd64 | head -50)
           echo "image_load response: $RESPONSE"
-          if [[ "$RESPONSE" == *'"width"'* ]]; then
-            echo "OK: image_load returned width"
-          else
-            echo "ERROR: width not found in response"
-            exit 1
-          fi
+          echo "$RESPONSE" | grep -q width || { echo "ERROR: width not found"; exit 1; }
+          echo "OK: image_load returned width"
 
           # Test image_sample_color
           RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"image_sample_color\",\"arguments\":{\"path\":\"${TEST_IMAGE}\",\"x\":10,\"y\":10}}}" | \
             timeout 10 ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-linux-amd64 | head -50)
           echo "image_sample_color response: $RESPONSE"
-          if [[ "$RESPONSE" == *'"hex"'* ]]; then
-            echo "OK: image_sample_color returned hex"
-          else
-            echo "ERROR: hex not found in response"
-            exit 1
-          fi
+          echo "$RESPONSE" | grep -q hex || { echo "ERROR: hex not found"; exit 1; }
+          echo "OK: image_sample_color returned hex"
 
       - name: Smoke test - OCR (should work with embedded tesseract)
         run: |
@@ -196,23 +188,15 @@ jobs:
           RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"image_load\",\"arguments\":{\"path\":\"${TEST_IMAGE}\"}}}" | \
             ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-darwin-amd64 2>&1 | head -50)
           echo "image_load response: $RESPONSE"
-          if [[ "$RESPONSE" == *'"width"'* ]]; then
-            echo "OK: image_load returned width"
-          else
-            echo "ERROR: width not found in response"
-            exit 1
-          fi
+          echo "$RESPONSE" | grep -q width || { echo "ERROR: width not found"; exit 1; }
+          echo "OK: image_load returned width"
 
           # Test image_sample_color
           RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"image_sample_color\",\"arguments\":{\"path\":\"${TEST_IMAGE}\",\"x\":10,\"y\":10}}}" | \
             ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-darwin-amd64 2>&1 | head -50)
           echo "image_sample_color response: $RESPONSE"
-          if [[ "$RESPONSE" == *'"hex"'* ]]; then
-            echo "OK: image_sample_color returned hex"
-          else
-            echo "ERROR: hex not found in response"
-            exit 1
-          fi
+          echo "$RESPONSE" | grep -q hex || { echo "ERROR: hex not found"; exit 1; }
+          echo "OK: image_sample_color returned hex"
 
       - name: Smoke test - OCR (should return install instructions)
         run: |
@@ -283,29 +267,21 @@ jobs:
           RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"image_load\",\"arguments\":{\"path\":\"${TEST_IMAGE}\"}}}" | \
             ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-darwin-arm64 2>&1 | head -50)
           echo "image_load response: $RESPONSE"
-          if [[ "$RESPONSE" == *'"width"'* ]]; then
-            echo "OK: image_load returned width"
-          else
-            echo "ERROR: width not found in response"
-            exit 1
-          fi
+          echo "$RESPONSE" | grep -q width || { echo "ERROR: width not found"; exit 1; }
+          echo "OK: image_load returned width"
 
           # Test image_sample_color
           RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"image_sample_color\",\"arguments\":{\"path\":\"${TEST_IMAGE}\",\"x\":10,\"y\":10}}}" | \
             ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-darwin-arm64 2>&1 | head -50)
           echo "image_sample_color response: $RESPONSE"
-          if [[ "$RESPONSE" == *'"hex"'* ]]; then
-            echo "OK: image_sample_color returned hex"
-          else
-            echo "ERROR: hex not found in response"
-            exit 1
-          fi
+          echo "$RESPONSE" | grep -q hex || { echo "ERROR: hex not found"; exit 1; }
+          echo "OK: image_sample_color returned hex"
 
       - name: Smoke test - OCR (should return install instructions)
         run: |
           TEST_IMAGE="$(pwd)/testdata/simple_diagram.png"
           RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"image_ocr_full\",\"arguments\":{\"path\":\"${TEST_IMAGE}\",\"language\":\"eng\"}}}" | \
-            ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-darwin-arm64 2>&1 | head -20)
+            ./image-tools-mcp-v${{ steps.version.outputs.VERSION }}-darwin-arm64 2>&1 | head -50)
           echo "OCR Response: $RESPONSE"
           # Should contain "tesseract not found" or "brew install"
           if echo "$RESPONSE" | grep -qE "tesseract not found|brew install"; then
