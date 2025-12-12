@@ -1,23 +1,27 @@
 # Image Tools MCP
 
 [![CI](https://github.com/ironsheep/image-tools-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/ironsheep/image-tools-mcp/actions/workflows/ci.yml)
+
 [![Release](https://github.com/ironsheep/image-tools-mcp/actions/workflows/release.yml/badge.svg)](https://github.com/ironsheep/image-tools-mcp/actions/workflows/release.yml)
+
 [![Go Version](https://img.shields.io/github/go-mod/go-version/ironsheep/image-tools-mcp)](https://go.dev/)
+
 [![License](https://img.shields.io/github/license/ironsheep/image-tools-mcp)](LICENSE)
+
 [![GitHub release](https://img.shields.io/github/v/release/ironsheep/image-tools-mcp)](https://github.com/ironsheep/image-tools-mcp/releases)
 
-A Model Context Protocol (MCP) server providing precise image analysis tools for Claude. This server bridges the gap between Claude's visual understanding and the precise measurements needed for tasks like diagram recreation, UI analysis, and technical documentation.
+A Model Context Protocol (MCP) server providing precise image analysis tools for Claude. This server bridges the gap between Claude's visual understanding and the precise measurements required for tasks such as diagram recreation, UI analysis, and technical documentation.
 
 ## Why This Exists
 
-When Claude views an image, it can understand what's in it but cannot:
+When Claude views an image, it can understand what's in it, but cannot:
 - Measure exact pixel distances between elements
 - Extract precise color values (hex, RGB, HSL)
 - Reliably read small or stylized text
 - Detect and locate shapes with exact coordinates
 - Zoom into specific regions for detailed examination
 
-This MCP server solves these problems by providing 19 specialized tools that give Claude precise, numerical data about images.
+This MCP server addresses these problems by providing 19 specialized tools that give Claude precise numerical data about images.
 
 **Primary Use Case**: Enabling Claude to accurately recreate diagrams as TikZ/LaTeX code by providing exact measurements, colors, text content, and shape positions.
 
