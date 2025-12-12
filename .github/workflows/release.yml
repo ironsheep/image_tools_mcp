@@ -73,8 +73,13 @@ jobs:
           fi
 
           OUTPUT_NAME="image-mcp-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}"
+          BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          GIT_COMMIT=$(git rev-parse --short HEAD)
 
-          go build -ldflags="-s -w -X 'main.Version=${{ steps.version.outputs.VERSION }}' -X 'main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" \
+          go build -ldflags="-s -w \
+            -X 'main.Version=${{ steps.version.outputs.VERSION }}' \
+            -X 'main.BuildTime=${BUILD_TIME}' \
+            -X 'main.GitCommit=${GIT_COMMIT}'" \
             -o "dist/${OUTPUT_NAME}" ./cmd/image-mcp
 
       - name: Upload artifact
@@ -82,6 +87,106 @@ jobs:
         with:
           name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/
+
+  sign-macos:
+    name: Sign macOS Binaries
+    runs-on: macos-latest
+    needs: build-binaries
+    # Only run if signing secrets are available
+    if: ${{ vars.MACOS_SIGNING_ENABLED == 'true' }}
+    steps:
+      - name: Download macOS amd64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-darwin-amd64
+          path: dist/
+
+      - name: Download macOS arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-darwin-arm64
+          path: dist/
+
+      - name: List binaries
+        run: ls -la dist/
+
+      - name: Import signing certificate
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          KEYCHAIN_PWD: ${{ secrets.KEYCHAIN_PWD }}
+        run: |
+          # Create variables
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          # Import certificate from secrets
+          echo -n "$MACOS_CERTIFICATE" | base64 --decode -o $CERTIFICATE_PATH
+
+          # Create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PWD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PWD" $KEYCHAIN_PATH
+
+          # Import certificate to keychain
+          security import $CERTIFICATE_PATH -P "$MACOS_CERTIFICATE_PWD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PWD" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+      - name: Sign binaries
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # Sign each macOS binary
+          for binary in dist/image-mcp-darwin-*; do
+            echo "Signing $binary..."
+            codesign --force --options runtime \
+              --sign "Developer ID Application: ${{ secrets.APPLE_DEVELOPER_NAME }} ($APPLE_TEAM_ID)" \
+              --timestamp \
+              "$binary"
+
+            # Verify signature
+            codesign --verify --verbose "$binary"
+          done
+
+      - name: Create ZIP archives for notarization
+        run: |
+          cd dist
+          for binary in image-mcp-darwin-*; do
+            zip "${binary}.zip" "$binary"
+          done
+
+      - name: Notarize binaries
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cd dist
+          for zipfile in image-mcp-darwin-*.zip; do
+            echo "Notarizing $zipfile..."
+            xcrun notarytool submit "$zipfile" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_ID_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              --wait
+
+            # Extract and staple
+            binary="${zipfile%.zip}"
+            unzip -o "$zipfile"
+            xcrun stapler staple "$binary"
+
+            # Re-create zip with stapled binary
+            rm "$zipfile"
+            zip "${binary}.zip" "$binary"
+          done
+
+      - name: Upload signed artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-darwin-signed
+          path: dist/image-mcp-darwin-*
+          # Don't include the zip files, just the signed binaries
 
   build-containers:
     name: Build Container Images
@@ -172,15 +277,34 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     needs: [build-binaries, build-containers]
+    # Also wait for signing if it ran
+    if: ${{ always() && needs.build-binaries.result == 'success' && needs.build-containers.result == 'success' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download all artifacts
+      - name: Download unsigned artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts/
+          pattern: binary-*
           merge-multiple: true
+
+      - name: Download signed macOS artifacts (if available)
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: binary-darwin-signed
+          path: artifacts-signed/
+
+      - name: Use signed macOS binaries if available
+        run: |
+          if [ -d "artifacts-signed" ] && [ "$(ls -A artifacts-signed 2>/dev/null)" ]; then
+            echo "Using signed macOS binaries"
+            cp artifacts-signed/image-mcp-darwin-* artifacts/
+          else
+            echo "No signed binaries found, using unsigned"
+          fi
 
       - name: Prepare release assets
         run: |
@@ -208,6 +332,17 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
+      - name: Check if macOS binaries are signed
+        id: check-signed
+        run: |
+          if [ -d "artifacts-signed" ] && [ "$(ls -A artifacts-signed 2>/dev/null)" ]; then
+            echo "MACOS_SIGNED=true" >> $GITHUB_OUTPUT
+            echo "MACOS_NOTE=macOS binaries are signed and notarized." >> $GITHUB_OUTPUT
+          else
+            echo "MACOS_SIGNED=false" >> $GITHUB_OUTPUT
+            echo "MACOS_NOTE=macOS binaries are unsigned. Run \`xattr -d com.apple.quarantine <binary>\` after download." >> $GITHUB_OUTPUT
+          fi
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -216,7 +351,7 @@ jobs:
           prerelease: false
           files: release/*
           body: |
-            ## Image MCP ${{ steps.version.outputs.VERSION }}
+            ## Image Tools MCP ${{ steps.version.outputs.VERSION }}
 
             ### Installation
 
@@ -235,8 +370,14 @@ jobs:
 
             ### Platforms
             - Linux (amd64, arm64)
-            - macOS (amd64, arm64)
+            - macOS (amd64, arm64) - ${{ steps.check-signed.outputs.MACOS_NOTE }}
             - Windows (amd64, arm64)
 
             ### Checksums
             See `checksums.txt` for SHA256 checksums of all binaries.
+
+            ### Version Info
+            ```
+            Version:    ${{ steps.version.outputs.VERSION }}
+            Git Commit: ${{ github.sha }}
+            ```

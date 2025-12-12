@@ -9,13 +9,24 @@ import (
 	"github.com/ironsheep/image-tools-mcp/internal/ocr"
 )
 
-// ToolCallParams represents the parameters for a tools/call request
+// ToolCallParams represents the parameters for a tools/call MCP request.
 type ToolCallParams struct {
-	Name      string          `json:"name"`
+	// Name is the tool to invoke (e.g., "image_load", "image_crop").
+	Name string `json:"name"`
+
+	// Arguments contains the tool-specific parameters as JSON.
 	Arguments json.RawMessage `json:"arguments"`
 }
 
-// handleToolsCall routes tool calls to their handlers
+// handleToolsCall processes a tools/call request and executes the specified tool.
+//
+// The response wraps the tool result in MCP's content format:
+//
+//	{
+//	  "content": [{"type": "text", "text": "<JSON result>"}]
+//	}
+//
+// Tool execution errors return a JSON-RPC error response with code -32000.
 func (s *Server) handleToolsCall(req *MCPRequest) *MCPResponse {
 	var params ToolCallParams
 	if err := json.Unmarshal(req.Params, &params); err != nil {
@@ -41,7 +52,14 @@ func (s *Server) handleToolsCall(req *MCPRequest) *MCPResponse {
 	}
 }
 
-// executeTool dispatches to the appropriate handler
+// executeTool dispatches tool execution to the appropriate handler function.
+//
+// Each tool handler:
+//  1. Unmarshals arguments from JSON
+//  2. Applies default values for optional parameters
+//  3. Loads images from cache as needed
+//  4. Calls the appropriate imaging/detection/ocr function
+//  5. Returns the result or error
 func (s *Server) executeTool(name string, args json.RawMessage) (interface{}, error) {
 	switch name {
 	// Basic Image Information
@@ -99,7 +117,7 @@ func (s *Server) executeTool(name string, args json.RawMessage) (interface{}, er
 	}
 }
 
-// Helper to create error responses
+// errorResponse creates a JSON-RPC error response with the given details.
 func (s *Server) errorResponse(id interface{}, code int, message, data string) *MCPResponse {
 	return &MCPResponse{
 		JSONRPC: "2.0",
@@ -112,6 +130,8 @@ func (s *Server) errorResponse(id interface{}, code int, message, data string) *
 	}
 }
 
+// mustMarshalJSON converts a value to pretty-printed JSON string.
+// Panics are suppressed; on marshal failure, returns an empty string.
 func mustMarshalJSON(v interface{}) string {
 	b, _ := json.MarshalIndent(v, "", "  ")
 	return string(b)

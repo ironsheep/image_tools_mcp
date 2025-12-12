@@ -6,25 +6,100 @@ import (
 	"sort"
 )
 
-// Line represents a detected line segment
+// Line represents a detected line segment with metadata.
+//
+// Lines are detected using the Hough line transform, which finds lines
+// by voting in polar coordinate space (rho, theta).
 type Line struct {
-	Start          Point   `json:"start"`
-	End            Point   `json:"end"`
-	Length         float64 `json:"length"`
-	AngleDegrees   float64 `json:"angle_degrees"`
-	Color          string  `json:"color"`
-	ThicknessApprox int    `json:"thickness_approx"`
-	HasArrowStart  bool    `json:"has_arrow_start"`
-	HasArrowEnd    bool    `json:"has_arrow_end"`
+	// Start is one endpoint of the line segment.
+	Start Point `json:"start"`
+
+	// End is the other endpoint of the line segment.
+	End Point `json:"end"`
+
+	// Length is the Euclidean distance between Start and End in pixels.
+	// Rounded to 1 decimal place.
+	Length float64 `json:"length"`
+
+	// AngleDegrees is the angle of the line from horizontal.
+	// 0° = horizontal right, 90° = vertical down, -90° = vertical up.
+	// Range: -180° to 180°, rounded to 1 decimal place.
+	AngleDegrees float64 `json:"angle_degrees"`
+
+	// Color is the hex color (#RRGGBB) sampled at the line's midpoint.
+	Color string `json:"color"`
+
+	// ThicknessApprox is an estimated line thickness in pixels.
+	// Measured by sampling perpendicular to the line at its midpoint.
+	ThicknessApprox int `json:"thickness_approx"`
+
+	// HasArrowStart indicates if an arrowhead was detected at the Start point.
+	// Only populated if detectArrows was true in DetectLines.
+	HasArrowStart bool `json:"has_arrow_start"`
+
+	// HasArrowEnd indicates if an arrowhead was detected at the End point.
+	HasArrowEnd bool `json:"has_arrow_end"`
 }
 
-// LinesResult contains detected lines
+// LinesResult contains all lines detected in an image.
 type LinesResult struct {
+	// Lines is the list of detected line segments.
+	// Limited to 50 lines maximum, sorted by vote count (strongest first).
 	Lines []Line `json:"lines"`
-	Count int    `json:"count"`
+
+	// Count is the number of lines detected.
+	Count int `json:"count"`
 }
 
-// DetectLines finds line segments in an image using Hough transform
+// DetectLines finds line segments in an image using the Hough line transform.
+//
+// This function is useful for detecting connections, borders, separators, and
+// structural lines in diagrams. It can optionally detect arrow heads at line
+// endpoints.
+//
+// Parameters:
+//   - img: Source image to analyze.
+//   - minLength: Minimum line length in pixels. Lines shorter than this are
+//     filtered out. Also affects the voting threshold (threshold = minLength/2).
+//     Typical: 20-100.
+//   - detectArrows: If true, check both endpoints for arrow head patterns.
+//     This adds processing time but identifies directed connections.
+//
+// Returns:
+//   - *LinesResult: Detected lines (max 50), sorted by detection confidence.
+//   - error: Currently always nil.
+//
+// # Algorithm (Hough Line Transform)
+//
+//  1. Edge Detection: Find edge pixels using gradient thresholds
+//  2. Hough Space Voting: For each edge pixel, vote for all lines passing
+//     through it by iterating theta from 0° to 179° and computing rho:
+//     rho = x*cos(theta) + y*sin(theta)
+//  3. Peak Detection: Find local maxima in the accumulator with votes >= threshold
+//  4. Line Extraction: For each peak (rho, theta):
+//     - Find all edge pixels within 2 pixels of the line
+//     - Determine endpoints from the extreme points
+//  5. Length Filtering: Remove lines shorter than minLength
+//  6. Arrow Detection (optional): Check endpoints for arrow head patterns
+//
+// # Arrow Detection
+//
+// Arrow heads are detected by looking for edge pixels at ±45° angles from the
+// line direction, extending back from the endpoint. Both left and right "wings"
+// must have at least 3 edge pixels within 10 pixels of the endpoint.
+//
+// # Thickness Estimation
+//
+// Line thickness is estimated by sampling perpendicular to the line at its
+// midpoint, counting edge pixels within ±10 pixels.
+//
+// # Limitations
+//
+//   - Maximum 50 lines returned (strongest by vote count)
+//   - Curved lines are not detected
+//   - Very thick lines may be detected as multiple parallel lines
+//   - Dashed/dotted lines may be detected as multiple segments
+//   - Arrow detection only works for ~45° arrow heads
 func DetectLines(img image.Image, minLength int, detectArrows bool) (*LinesResult, error) {
 	bounds := img.Bounds()
 	width := bounds.Dx()
@@ -205,7 +280,10 @@ func DetectLines(img image.Image, minLength int, detectArrows bool) (*LinesResul
 	}, nil
 }
 
-// estimateLineThickness estimates line thickness by sampling perpendicular to line
+// estimateLineThickness estimates line thickness by sampling perpendicular to the line.
+//
+// At the line's midpoint, samples perpendicular to the line direction for ±10 pixels,
+// counting edge pixels. Returns a minimum of 1 even if no edges are found.
 func estimateLineThickness(edges [][]bool, x1, y1, x2, y2, width, height int) int {
 	dx := float64(x2 - x1)
 	dy := float64(y2 - y1)
@@ -238,7 +316,17 @@ func estimateLineThickness(edges [][]bool, x1, y1, x2, y2, width, height int) in
 	return thickness
 }
 
-// detectArrowHead checks if there's an arrow head at the given end of a line
+// detectArrowHead checks if there's an arrow head pattern at a line endpoint.
+//
+// Looks for edge pixels forming a "V" shape pointing away from the line direction.
+// The arrow wings are expected at ±45° from the line direction.
+//
+// Parameters:
+//   - endX, endY: The endpoint to check for an arrow
+//   - otherX, otherY: The other endpoint (defines line direction)
+//
+// Returns true if both left and right wings have at least 3 edge pixels
+// within 10 pixels of the endpoint.
 func detectArrowHead(edges [][]bool, endX, endY, otherX, otherY, width, height int) bool {
 	// Direction from other end to this end
 	dx := float64(endX - otherX)

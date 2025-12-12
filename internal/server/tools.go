@@ -1,13 +1,36 @@
 package server
 
-// Tool represents an MCP tool definition
+// Tool represents an MCP tool definition with JSON Schema for input validation.
+//
+// This struct is serialized directly to JSON for the tools/list response,
+// following the MCP tool definition format.
 type Tool struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
+	// Name is the unique identifier for the tool (e.g., "image_load").
+	Name string `json:"name"`
+
+	// Description explains what the tool does, shown to the AI model.
+	Description string `json:"description"`
+
+	// InputSchema is a JSON Schema object describing the tool's parameters.
+	// Includes properties, required fields, types, and defaults.
 	InputSchema map[string]interface{} `json:"inputSchema"`
 }
 
-// GetToolDefinitions returns all available tools
+// GetToolDefinitions returns the complete list of available image analysis tools.
+//
+// Each tool includes:
+//   - A unique name for invocation
+//   - A description explaining its purpose and use cases
+//   - A JSON Schema defining its input parameters
+//
+// The tools are organized into categories:
+//   - Basic Image Information (2 tools)
+//   - Region Operations (2 tools)
+//   - Color Operations (3 tools)
+//   - Measurement Operations (2 tools)
+//   - OCR Operations (3 tools)
+//   - Shape Detection (4 tools)
+//   - Analysis Helpers (2 tools)
 func GetToolDefinitions() []Tool {
 	return []Tool{
 		// Basic Image Information
@@ -459,7 +482,10 @@ func GetToolDefinitions() []Tool {
 	}
 }
 
-// handleToolsList returns the list of available tools
+// handleToolsList returns the list of available tools in MCP format.
+//
+// This is called in response to the "tools/list" method and returns all
+// tool definitions with their JSON Schemas.
 func (s *Server) handleToolsList(req *MCPRequest) *MCPResponse {
 	return &MCPResponse{
 		JSONRPC: "2.0",

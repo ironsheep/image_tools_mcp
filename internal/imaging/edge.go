@@ -10,15 +10,73 @@ import (
 	"math"
 )
 
-// EdgeDetectResult contains the edge-detected image
+// EdgeDetectResult contains an edge-detected image encoded as base64 PNG.
+//
+// The result is a grayscale image where white pixels (255) represent detected
+// edges and black pixels (0) represent non-edges.
 type EdgeDetectResult struct {
-	Width       int    `json:"width"`
-	Height      int    `json:"height"`
+	// Width of the output image in pixels (same as input).
+	Width int `json:"width"`
+
+	// Height of the output image in pixels (same as input).
+	Height int `json:"height"`
+
+	// ImageBase64 is the edge image encoded as base64 PNG.
+	// The image is grayscale with edges marked in white (255).
 	ImageBase64 string `json:"image_base64"`
-	MimeType    string `json:"mime_type"`
+
+	// MimeType is always "image/png" for edge detection results.
+	MimeType string `json:"mime_type"`
 }
 
-// EdgeDetect performs Canny-style edge detection on an image
+// EdgeDetect performs Canny-style edge detection on an image.
+//
+// This function identifies edges (boundaries between regions) in an image,
+// producing a binary output where edges are white and non-edges are black.
+// It's useful for understanding diagram structure without color fills.
+//
+// Parameters:
+//   - img: Source image (color or grayscale).
+//   - thresholdLow: Low threshold for edge detection (0-255). Edges with gradient
+//     magnitude below this are discarded. Typical value: 50.
+//   - thresholdHigh: High threshold for edge detection (0-255). Edges above this
+//     are always kept. Typical value: 150.
+//
+// Returns:
+//   - *EdgeDetectResult: Grayscale edge image as base64 PNG.
+//   - error: Non-nil if PNG encoding fails.
+//
+// # Algorithm
+//
+// The implementation follows the Canny edge detection algorithm:
+//
+//  1. Grayscale conversion: RGB -> luminance using ITU-R BT.601 weights
+//     (0.299*R + 0.587*G + 0.114*B)
+//
+//  2. Gaussian blur: 5x5 kernel to reduce noise
+//
+//  3. Gradient computation: Sobel operators for X and Y gradients
+//     magnitude = sqrt(Gx² + Gy²)
+//     direction = atan2(Gy, Gx)
+//
+//  4. Non-maximum suppression: Thin edges to 1-pixel width by keeping only
+//     local maxima in the gradient direction
+//
+//  5. Hysteresis thresholding:
+//     - Pixels above thresholdHigh are strong edges (always kept)
+//     - Pixels between thresholdLow and thresholdHigh are weak edges
+//     (kept only if connected to strong edges)
+//     - Pixels below thresholdLow are discarded
+//
+// # Threshold Selection
+//
+// Lower thresholds detect more edges but increase noise. Higher thresholds
+// produce cleaner results but may miss faint edges.
+//
+// Recommended starting points:
+//   - Clean diagrams: thresholdLow=50, thresholdHigh=150
+//   - Photographs: thresholdLow=100, thresholdHigh=200
+//   - Noisy images: thresholdLow=75, thresholdHigh=175
 func EdgeDetect(img image.Image, thresholdLow, thresholdHigh int) (*EdgeDetectResult, error) {
 	bounds := img.Bounds()
 	width := bounds.Dx()
@@ -157,7 +215,18 @@ func EdgeDetect(img image.Image, thresholdLow, thresholdHigh int) (*EdgeDetectRe
 	}, nil
 }
 
-// gaussianBlur applies a 5x5 Gaussian blur
+// gaussianBlur applies a 5x5 Gaussian blur to reduce noise before edge detection.
+//
+// Uses a standard 5x5 Gaussian kernel with sigma ≈ 1.4:
+//
+//	1  4  7  4  1
+//	4 16 26 16  4
+//	7 26 41 26  7
+//	4 16 26 16  4
+//	1  4  7  4  1
+//
+// Total kernel sum = 273, used for normalization.
+// Border pixels use clamped (replicated) edge values.
 func gaussianBlur(img [][]float64, width, height int) [][]float64 {
 	kernel := [][]float64{
 		{1, 4, 7, 4, 1},
@@ -186,6 +255,8 @@ func gaussianBlur(img [][]float64, width, height int) [][]float64 {
 	return result
 }
 
+// clamp constrains an integer value to the range [min, max].
+// Used for boundary handling in convolution operations.
 func clamp(val, min, max int) int {
 	if val < min {
 		return min

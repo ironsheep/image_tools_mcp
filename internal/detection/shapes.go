@@ -7,39 +7,105 @@ import (
 	"sort"
 )
 
-// Bounds represents a bounding box
+// Bounds represents a rectangular bounding box in pixel coordinates.
+//
+// The coordinate convention follows standard image bounds:
+//   - (X1, Y1) is the top-left corner (inclusive)
+//   - (X2, Y2) is the bottom-right corner (exclusive for iteration, inclusive for bounds)
 type Bounds struct {
-	X1 int `json:"x1"`
-	Y1 int `json:"y1"`
-	X2 int `json:"x2"`
-	Y2 int `json:"y2"`
+	X1 int `json:"x1"` // Left edge (inclusive)
+	Y1 int `json:"y1"` // Top edge (inclusive)
+	X2 int `json:"x2"` // Right edge
+	Y2 int `json:"y2"` // Bottom edge
 }
 
-// Point represents a 2D point
+// Point represents a 2D coordinate in pixel space.
 type Point struct {
-	X int `json:"x"`
-	Y int `json:"y"`
+	X int `json:"x"` // Horizontal position (0 = leftmost)
+	Y int `json:"y"` // Vertical position (0 = topmost)
 }
 
-// Rectangle represents a detected rectangle
+// Rectangle represents a detected rectangular shape with metadata.
+//
+// Rectangles are detected using edge detection and contour analysis.
+// The confidence score indicates how closely the shape matches a true rectangle.
 type Rectangle struct {
-	Bounds      Bounds  `json:"bounds"`
-	Center      Point   `json:"center"`
-	Width       int     `json:"width"`
-	Height      int     `json:"height"`
-	Area        int     `json:"area"`
-	FillColor   string  `json:"fill_color,omitempty"`
-	BorderColor string  `json:"border_color,omitempty"`
-	Confidence  float64 `json:"confidence"`
+	// Bounds is the bounding box enclosing the rectangle.
+	Bounds Bounds `json:"bounds"`
+
+	// Center is the center point of the rectangle.
+	Center Point `json:"center"`
+
+	// Width is the horizontal extent in pixels (X2 - X1).
+	Width int `json:"width"`
+
+	// Height is the vertical extent in pixels (Y2 - Y1).
+	Height int `json:"height"`
+
+	// Area is the rectangle's area in square pixels (Width × Height).
+	Area int `json:"area"`
+
+	// FillColor is the hex color sampled at the center of the rectangle.
+	// May be empty if sampling fails.
+	FillColor string `json:"fill_color,omitempty"`
+
+	// BorderColor is the hex color sampled at the top-left corner.
+	// May be empty if sampling fails.
+	BorderColor string `json:"border_color,omitempty"`
+
+	// Confidence indicates how rectangular the shape is (0.0 to 1.0).
+	// Based on comparing contour length to expected rectangle perimeter.
+	Confidence float64 `json:"confidence"`
 }
 
-// RectanglesResult contains detected rectangles
+// RectanglesResult contains all rectangles detected in an image.
 type RectanglesResult struct {
+	// Rectangles is the list of detected rectangles, sorted by area (largest first).
 	Rectangles []Rectangle `json:"rectangles"`
-	Count      int         `json:"count"`
+
+	// Count is the number of rectangles detected.
+	Count int `json:"count"`
 }
 
-// DetectRectangles finds rectangular shapes in an image
+// DetectRectangles finds rectangular shapes in an image using edge and contour analysis.
+//
+// This function is useful for detecting boxes, frames, UI elements, and other
+// rectangular shapes in diagrams and screenshots.
+//
+// Parameters:
+//   - img: Source image to analyze.
+//   - minArea: Minimum area in square pixels for a rectangle to be included.
+//     Use higher values to filter out small noise. Typical: 100-1000.
+//   - tolerance: Rectangularity threshold (0.0 to 1.0). Higher values require
+//     shapes to be more perfectly rectangular. Typical: 0.8-0.95.
+//
+// Returns:
+//   - *RectanglesResult: Detected rectangles sorted by area (largest first).
+//   - error: Currently always nil.
+//
+// # Algorithm
+//
+//  1. Edge Detection: Compute gradients and threshold to find edge pixels
+//  2. Contour Finding: Use flood-fill to group connected edge pixels
+//  3. Bounding Box: Calculate the bounding rectangle of each contour
+//  4. Rectangularity Check: Compare contour perimeter to expected rectangle
+//     perimeter. Score = 1 - |contour_length - expected_perimeter| / expected_perimeter
+//  5. Filtering: Remove shapes below minArea or with score < tolerance
+//  6. Color Sampling: Sample fill color at center, border color at corner
+//
+// # Rectangularity Score
+//
+// A perfect rectangle has a contour length exactly equal to 2*(width + height).
+// The rectangularity score measures deviation from this:
+//   - 1.0 = Perfect rectangle (contour matches perimeter exactly)
+//   - Lower values indicate non-rectangular shapes (circles, irregular polygons)
+//
+// # Limitations
+//
+//   - Only detects axis-aligned rectangles (not rotated)
+//   - May detect nested rectangles separately
+//   - Rounded corners reduce rectangularity score
+//   - Very thin rectangles may have low confidence
 func DetectRectangles(img image.Image, minArea int, tolerance float64) (*RectanglesResult, error) {
 	bounds := img.Bounds()
 	width := bounds.Dx()
@@ -132,22 +198,85 @@ func DetectRectangles(img image.Image, minArea int, tolerance float64) (*Rectang
 	}, nil
 }
 
-// Circle represents a detected circle
+// Circle represents a detected circular shape with metadata.
+//
+// Circles are detected using the Hough circle transform, which votes for
+// potential circle centers at each edge pixel.
 type Circle struct {
-	Center     Point   `json:"center"`
-	Radius     int     `json:"radius"`
-	Diameter   int     `json:"diameter"`
-	FillColor  string  `json:"fill_color,omitempty"`
+	// Center is the detected center point of the circle.
+	Center Point `json:"center"`
+
+	// Radius is the detected radius in pixels.
+	Radius int `json:"radius"`
+
+	// Diameter is 2 × Radius for convenience.
+	Diameter int `json:"diameter"`
+
+	// FillColor is the hex color sampled at the center of the circle.
+	FillColor string `json:"fill_color,omitempty"`
+
+	// Confidence indicates detection quality (0.0 to 1.0).
+	// Based on the ratio of edge votes to expected circumference.
 	Confidence float64 `json:"confidence"`
 }
 
-// CirclesResult contains detected circles
+// CirclesResult contains all circles detected in an image.
 type CirclesResult struct {
+	// Circles is the list of detected circles, sorted by confidence (highest first).
 	Circles []Circle `json:"circles"`
-	Count   int      `json:"count"`
+
+	// Count is the number of circles detected.
+	Count int `json:"count"`
 }
 
-// DetectCircles finds circular shapes in an image using Hough circle transform
+// DetectCircles finds circular shapes in an image using the Hough circle transform.
+//
+// This function is useful for detecting nodes, bullets, connectors, and other
+// circular elements in diagrams.
+//
+// Parameters:
+//   - img: Source image to analyze.
+//   - minRadius: Minimum circle radius to detect in pixels. Use higher values
+//     to filter out small dots. Typical: 5-20.
+//   - maxRadius: Maximum circle radius to detect in pixels. Limits search space
+//     for performance. Typical: 50-500.
+//
+// Returns:
+//   - *CirclesResult: Detected circles sorted by confidence (highest first).
+//   - error: Currently always nil.
+//
+// # Algorithm (Hough Circle Transform)
+//
+//  1. Edge Detection: Find edge pixels using gradient thresholds
+//  2. Accumulator Voting: For each radius from minRadius to maxRadius:
+//     - For each edge pixel, vote for potential centers by drawing a
+//     voting circle around the pixel
+//     - Votes are cast every 10° around the edge pixel
+//  3. Peak Detection: Find local maxima in the accumulator that exceed
+//     threshold (60% of expected circumference points)
+//  4. Duplicate Removal: Merge circles with overlapping centers
+//  5. Color Sampling: Sample fill color at detected center
+//
+// # Confidence Score
+//
+// Confidence is calculated as: votes / (2 × radius)
+//
+// This represents the fraction of the circumference where edge pixels voted
+// for this center. Capped at 1.0.
+//   - 1.0 = Every expected edge point voted for this center
+//   - 0.6 = Threshold for detection (sparse but detectable circle)
+//
+// # Performance
+//
+// Time complexity is O(width × height × (maxRadius - minRadius) × 36), where 36
+// comes from voting every 10°. Large radius ranges significantly increase time.
+//
+// # Limitations
+//
+//   - Only detects filled or outlined circles, not arcs
+//   - Overlapping circles may be detected as single circles
+//   - Ellipses are not detected (only true circles)
+//   - Large maxRadius values slow detection significantly
 func DetectCircles(img image.Image, minRadius, maxRadius int) (*CirclesResult, error) {
 	bounds := img.Bounds()
 	width := bounds.Dx()
@@ -238,7 +367,14 @@ func DetectCircles(img image.Image, minRadius, maxRadius int) (*CirclesResult, e
 	}, nil
 }
 
-// detectEdges performs simple edge detection
+// detectEdges performs simple gradient-based edge detection.
+//
+// Uses a simple gradient threshold: pixels where |current - neighbor| > 30
+// (in grayscale) are marked as edges. Checks both horizontal and vertical
+// neighbors.
+//
+// Returns a 2D boolean array where true indicates an edge pixel.
+// Border pixels (x=0, y=0, x=width-1, y=height-1) are never edges.
 func detectEdges(img image.Image, width, height int) [][]bool {
 	bounds := img.Bounds()
 	edges := make([][]bool, height)
@@ -269,7 +405,13 @@ func detectEdges(img image.Image, width, height int) [][]bool {
 	return edges
 }
 
-// findContours finds connected components in edge image
+// findContours finds connected components (contours) in a binary edge image.
+//
+// Uses flood-fill to group connected edge pixels into contours.
+// Connectivity is 8-connected (includes diagonals).
+//
+// Contours smaller than 10 pixels are discarded as noise.
+// Returns a slice of contours, where each contour is a slice of Points.
 func findContours(edges [][]bool, width, height int) [][]Point {
 	visited := make([][]bool, height)
 	for y := 0; y < height; y++ {
@@ -293,7 +435,11 @@ func findContours(edges [][]bool, width, height int) [][]Point {
 	return contours
 }
 
-// floodFill performs flood fill to find connected components
+// floodFill performs iterative flood-fill from a starting point.
+//
+// Uses a stack-based approach (not recursive) to avoid stack overflow
+// on large contours. Marks visited pixels and appends them to the contour.
+// Uses 8-connectivity (includes diagonal neighbors).
 func floodFill(edges, visited [][]bool, startX, startY, width, height int, contour *[]Point) {
 	stack := []Point{{X: startX, Y: startY}}
 
@@ -323,19 +469,25 @@ func floodFill(edges, visited [][]bool, startX, startY, width, height int, conto
 	}
 }
 
-// grayValue returns grayscale value of a pixel
+// grayValue converts a pixel to grayscale using ITU-R BT.601 luminance weights.
+// Formula: Y = 0.299*R + 0.587*G + 0.114*B
 func grayValue(img image.Image, x, y int) uint8 {
 	r, g, b, _ := img.At(x, y).RGBA()
 	return uint8((float64(r>>8)*0.299 + float64(g>>8)*0.587 + float64(b>>8)*0.114))
 }
 
-// sampleColorHex returns hex color at a pixel
+// sampleColorHex returns the hex color (#RRGGBB) of a pixel.
+// No bounds checking is performed; caller must ensure coordinates are valid.
 func sampleColorHex(img image.Image, x, y int) string {
 	r, g, b, _ := img.At(x, y).RGBA()
 	return fmt.Sprintf("#%02X%02X%02X", uint8(r>>8), uint8(g>>8), uint8(b>>8))
 }
 
-// filterDuplicateCircles removes circles with very close centers
+// filterDuplicateCircles removes circles with overlapping centers.
+//
+// Two circles are considered duplicates if the distance between their centers
+// is less than the average of their radii. In such cases, only the first
+// circle (typically higher confidence due to sorting) is kept.
 func filterDuplicateCircles(circles []Circle) []Circle {
 	if len(circles) == 0 {
 		return circles

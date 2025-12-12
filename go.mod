@@ -7,4 +7,4 @@ require (
 	github.com/otiai10/gosseract/v2 v2.4.1
 )
 
-require golang.org/x/image v0.18.0 // indirect
+require golang.org/x/image v0.15.0 // indirect

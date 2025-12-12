@@ -13,16 +13,64 @@ import (
 	"github.com/disintegration/imaging"
 )
 
-// GridOverlayResult contains the image with grid overlay
+// GridOverlayResult contains an image with a coordinate grid overlay.
+//
+// The grid helps with precise positioning and measurement by providing
+// visual reference lines at regular intervals.
 type GridOverlayResult struct {
-	Width       int    `json:"width"`
-	Height      int    `json:"height"`
+	// Width of the output image in pixels (same as input).
+	Width int `json:"width"`
+
+	// Height of the output image in pixels (same as input).
+	Height int `json:"height"`
+
+	// ImageBase64 is the image with grid encoded as base64 PNG.
 	ImageBase64 string `json:"image_base64"`
-	MimeType    string `json:"mime_type"`
-	GridSpacing int    `json:"grid_spacing"`
+
+	// MimeType is always "image/png" for grid overlay results.
+	MimeType string `json:"mime_type"`
+
+	// GridSpacing is the distance between grid lines in pixels.
+	GridSpacing int `json:"grid_spacing"`
 }
 
-// GridOverlay adds a coordinate grid overlay to an image
+// GridOverlay adds a coordinate grid overlay to an image for positioning reference.
+//
+// This function draws grid lines at regular intervals and optionally labels
+// intersections with their coordinates. It's useful for:
+//   - Precise positioning when recreating diagrams
+//   - Measuring distances between elements
+//   - Providing coordinate reference for subsequent API calls
+//
+// Parameters:
+//   - img: Source image to overlay the grid onto.
+//   - gridSpacing: Distance between grid lines in pixels. Common values: 25, 50, 100.
+//   - showCoordinates: If true, label grid intersections with "x,y" text.
+//   - gridColorHex: Grid line color as hex string. Supports formats:
+//   - "#RRGGBB" (6 chars): Opaque color
+//   - "#RRGGBBAA" (8 chars): Color with alpha (e.g., "#FF000080" = 50% red)
+//   - Invalid or empty string defaults to semi-transparent red (#FF000080)
+//
+// Returns:
+//   - *GridOverlayResult: The image with grid overlay as base64 PNG.
+//   - error: Non-nil if PNG encoding fails.
+//
+// # Grid Layout
+//
+// Grid lines are drawn starting from gridSpacing pixels from the origin:
+//   - First vertical line at x = gridSpacing
+//   - First horizontal line at y = gridSpacing
+//   - Subsequent lines at multiples of gridSpacing
+//
+// Lines at x=0 and y=0 are NOT drawn (they would be at the image edge).
+//
+// # Coordinate Labels
+//
+// When showCoordinates is true, each grid intersection is labeled with its
+// pixel coordinates in "x,y" format. Labels are drawn with:
+//   - White text on dark background for readability
+//   - Simple 3x5 pixel font for digits and comma
+//   - Position offset 2 pixels right and down from intersection
 func GridOverlay(img image.Image, gridSpacing int, showCoordinates bool, gridColorHex string) (*GridOverlayResult, error) {
 	bounds := img.Bounds()
 	width := bounds.Dx()
@@ -79,7 +127,14 @@ func GridOverlay(img image.Image, gridSpacing int, showCoordinates bool, gridCol
 	}, nil
 }
 
-// parseHexColor parses a hex color string like "#FF0000" or "#FF000080"
+// parseHexColor parses a hex color string to RGBA.
+//
+// Supported formats:
+//   - "#RRGGBB" (6 chars after #): Opaque color (alpha = 255)
+//   - "#RRGGBBAA" (8 chars after #): Color with explicit alpha
+//   - "RRGGBB" or "RRGGBBAA": Same as above without leading #
+//
+// Returns error for empty strings, invalid hex characters, or wrong length.
 func parseHexColor(hex string) (color.RGBA, error) {
 	if len(hex) == 0 {
 		return color.RGBA{}, fmt.Errorf("empty color string")
@@ -115,8 +170,20 @@ func parseHexColor(hex string) (color.RGBA, error) {
 	return color.RGBA{R: r, G: g, B: b, A: a}, nil
 }
 
-// drawLabel draws a simple text label at the given position
-// This is a basic implementation - for production, consider using a font library
+// drawLabel draws a simple text label at the given position.
+//
+// This is a basic bitmap font implementation using 3x5 pixel glyphs for digits
+// and comma. Each character is 3 pixels wide with 1 pixel spacing (4 pixels total).
+//
+// Parameters:
+//   - img: Target RGBA image to draw on.
+//   - x, y: Top-left position of the label.
+//   - text: String to render (only digits 0-9 and comma are supported).
+//   - fg: Foreground (text) color.
+//   - bg: Background color for readability.
+//
+// The label is drawn with a 1-pixel padding of background color around the text.
+// Unsupported characters are skipped (rendered as blank space).
 func drawLabel(img *image.RGBA, x, y int, text string, fg, bg color.RGBA) {
 	// Simple 3x5 pixel font for digits and comma
 	glyphs := map[rune][]string{

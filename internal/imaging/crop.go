@@ -10,15 +10,59 @@ import (
 	"github.com/disintegration/imaging"
 )
 
-// CropResult contains the cropped image data
+// CropResult contains a cropped image encoded as base64 PNG.
+//
+// This result type is designed for transmitting cropped images through
+// JSON-based protocols like MCP, where binary data must be encoded as text.
 type CropResult struct {
-	Width       int    `json:"width"`
-	Height      int    `json:"height"`
+	// Width of the cropped (and optionally scaled) image in pixels.
+	Width int `json:"width"`
+
+	// Height of the cropped (and optionally scaled) image in pixels.
+	Height int `json:"height"`
+
+	// ImageBase64 is the cropped image encoded as base64 PNG.
+	// Decode with base64.StdEncoding.DecodeString() to get raw PNG bytes.
 	ImageBase64 string `json:"image_base64"`
-	MimeType    string `json:"mime_type"`
+
+	// MimeType is always "image/png" for crop results.
+	MimeType string `json:"mime_type"`
 }
 
-// Crop extracts a rectangular region from an image
+// Crop extracts a rectangular region from an image and returns it as base64 PNG.
+//
+// This function is useful for zooming into specific areas of an image for
+// detailed examination or for extracting sub-images for further processing.
+//
+// Parameters:
+//   - img: Source image to crop from.
+//   - x1, y1: Top-left corner of the crop region (inclusive).
+//   - x2, y2: Bottom-right corner of the crop region (exclusive).
+//   - scale: Scaling factor to apply after cropping. Use 1.0 for no scaling,
+//     2.0 to double the size, 0.5 to halve it, etc. Must be > 0.
+//
+// Returns:
+//   - *CropResult: The cropped image data with dimensions and base64 encoding.
+//   - error: Non-nil if:
+//   - Crop region is outside image bounds
+//   - Crop region is invalid (x1 >= x2 or y1 >= y2)
+//   - PNG encoding fails
+//
+// # Coordinate System
+//
+// Coordinates are 0-based with (0,0) at top-left:
+//   - x1, y1 specify the inclusive top-left corner
+//   - x2, y2 specify the exclusive bottom-right corner
+//   - The cropped width is (x2 - x1), height is (y2 - y1)
+//
+// # Scaling
+//
+// When scale != 1.0, the cropped region is resized using Lanczos interpolation,
+// which provides high-quality results for both upscaling and downscaling.
+// The final dimensions are:
+//
+//	finalWidth = int(cropWidth * scale)
+//	finalHeight = int(cropHeight * scale)
 func Crop(img image.Image, x1, y1, x2, y2 int, scale float64) (*CropResult, error) {
 	bounds := img.Bounds()
 
@@ -52,7 +96,38 @@ func Crop(img image.Image, x1, y1, x2, y2 int, scale float64) (*CropResult, erro
 	}, nil
 }
 
-// CropQuadrant extracts a named region from an image
+// CropQuadrant extracts a named region from an image using predefined positions.
+//
+// This function provides a convenient way to extract common image regions without
+// calculating exact coordinates. It's useful for quick navigation or when analyzing
+// images with predictable layouts.
+//
+// Parameters:
+//   - img: Source image to crop from.
+//   - region: Named region to extract. Must be one of:
+//   - "top-left": Upper-left quadrant (0,0 to midX,midY)
+//   - "top-right": Upper-right quadrant (midX,0 to width,midY)
+//   - "bottom-left": Lower-left quadrant (0,midY to midX,height)
+//   - "bottom-right": Lower-right quadrant (midX,midY to width,height)
+//   - "top-half": Upper half (0,0 to width,midY)
+//   - "bottom-half": Lower half (0,midY to width,height)
+//   - "left-half": Left half (0,0 to midX,height)
+//   - "right-half": Right half (midX,0 to width,height)
+//   - "center": Center 50% (quarter margins on all sides)
+//   - scale: Scaling factor to apply after cropping (same as Crop).
+//
+// Returns:
+//   - *CropResult: The cropped image data.
+//   - error: Non-nil if region name is invalid or cropping fails.
+//
+// # Region Definitions
+//
+// For an image of size W x H:
+//   - midX = W / 2 (integer division)
+//   - midY = H / 2 (integer division)
+//   - "center" uses 25% margins: (W/4, H/4) to (W-W/4, H-H/4)
+//
+// Due to integer division, odd-sized images may have slightly asymmetric regions.
 func CropQuadrant(img image.Image, region string, scale float64) (*CropResult, error) {
 	bounds := img.Bounds()
 	w := bounds.Dx()
