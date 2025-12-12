@@ -31,9 +31,21 @@ for file in "${FILES[@]}"; do
         echo "  Downloading ${file}..."
 
         # Try system tessdata first (faster, no download)
-        system_path="/usr/share/tesseract-ocr/5/tessdata/${file}"
-        if [ -f "$system_path" ]; then
-            cp "$system_path" "$dest"
+        # Check multiple possible paths
+        system_file=""
+        for sys_path in \
+            "/usr/share/tesseract-ocr/5/tessdata/${file}" \
+            "/usr/share/tesseract-ocr/4/tessdata/${file}" \
+            "/usr/share/tesseract-ocr/tessdata/${file}" \
+            "/usr/share/tessdata/${file}"; do
+            if [ -f "$sys_path" ]; then
+                system_file="$sys_path"
+                break
+            fi
+        done
+
+        if [ -n "$system_file" ]; then
+            cp "$system_file" "$dest"
             echo "  [OK] Copied from system: ${file}"
         else
             # Download from GitHub

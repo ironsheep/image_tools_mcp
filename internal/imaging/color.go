@@ -245,7 +245,7 @@ func DominantColors(img image.Image, count int, region *Region) (*DominantColors
 	for hex, cnt := range colorCounts {
 		// Parse hex back to RGB
 		var r, g, b uint8
-		fmt.Sscanf(hex, "#%02X%02X%02X", &r, &g, &b)
+		_, _ = fmt.Sscanf(hex, "#%02X%02X%02X", &r, &g, &b)
 
 		colors = append(colors, ColorFrequency{
 			Hex:        hex,

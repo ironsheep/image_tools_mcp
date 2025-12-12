@@ -1,7 +1,6 @@
 package imaging
 
 import (
-	"image"
 	"image/color"
 	"math"
 	"testing"
@@ -276,17 +275,3 @@ func TestAbsDiff(t *testing.T) {
 	}
 }
 
-// createSolidColorRegion creates an image with a specific region filled with a color
-func createSolidColorRegion(width, height int, r Region, c color.Color, bg color.Color) image.Image {
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			if x >= r.X1 && x < r.X2 && y >= r.Y1 && y < r.Y2 {
-				img.Set(x, y, c)
-			} else {
-				img.Set(x, y, bg)
-			}
-		}
-	}
-	return img
-}

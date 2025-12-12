@@ -35,41 +35,6 @@ func createTestImage(t *testing.T, width, height int, c color.Color) string {
 	return tmpFile.Name()
 }
 
-// createTestImageWithPattern creates a test image with a specific pattern
-func createTestImageWithPattern(t *testing.T, width, height int) string {
-	t.Helper()
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
-
-	// Create a pattern: red top-left, green top-right, blue bottom-left, white bottom-right
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			var c color.Color
-			if x < width/2 && y < height/2 {
-				c = color.RGBA{255, 0, 0, 255} // Red
-			} else if x >= width/2 && y < height/2 {
-				c = color.RGBA{0, 255, 0, 255} // Green
-			} else if x < width/2 && y >= height/2 {
-				c = color.RGBA{0, 0, 255, 255} // Blue
-			} else {
-				c = color.RGBA{255, 255, 255, 255} // White
-			}
-			img.Set(x, y, c)
-		}
-	}
-
-	tmpFile, err := os.CreateTemp("", "test-pattern-*.png")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-	defer tmpFile.Close()
-
-	if err := png.Encode(tmpFile, img); err != nil {
-		os.Remove(tmpFile.Name())
-		t.Fatalf("failed to encode image: %v", err)
-	}
-
-	return tmpFile.Name()
-}
 
 func TestNewImageCache(t *testing.T) {
 	cache := NewImageCache()
@@ -126,7 +91,7 @@ func TestImageCache_Load_InvalidImage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
-	tmpFile.WriteString("not an image")
+	_, _ = tmpFile.WriteString("not an image")
 	tmpFile.Close()
 	defer os.Remove(tmpFile.Name())
 
@@ -268,7 +233,7 @@ func TestLoadImageInfo_FormatDetection(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to create file: %v", err)
 			}
-			png.Encode(f, img)
+			_ = png.Encode(f, img)
 			f.Close()
 			defer os.Remove(tmpPath)
 

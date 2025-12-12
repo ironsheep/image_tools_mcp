@@ -143,7 +143,8 @@ func parseHexColor(hex string) (color.RGBA, error) {
 		hex = hex[1:]
 	}
 
-	var r, g, b, a uint8 = 0, 0, 0, 255
+	var r, g, b uint8
+	a := uint8(255)
 
 	switch len(hex) {
 	case 6:
