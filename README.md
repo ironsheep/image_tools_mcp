@@ -36,7 +36,7 @@ Download the binary for your platform from the [Releases](https://github.com/iro
 | Platform | Binary | OCR |
 |----------|--------|-----|
 | Linux AMD64 | `image-tools-mcp-v*-linux-amd64` | Embedded |
-| Linux ARM64 | `image-tools-mcp-v*-linux-arm64` | Requires Tesseract |
+| Linux ARM64 | `image-tools-mcp-v*-linux-arm64` | Embedded |
 | macOS Intel | `image-tools-mcp-v*-darwin-amd64` | Requires Tesseract |
 | macOS Apple Silicon | `image-tools-mcp-v*-darwin-arm64` | Requires Tesseract |
 | Windows AMD64 | `image-tools-mcp-v*-windows-amd64.exe` | Requires Tesseract |
@@ -96,12 +96,11 @@ Once configured, Claude can use tools like:
 
 ## Platform Notes
 
-**Linux AMD64** includes embedded Tesseract OCR - full functionality with no additional setup.
+**Linux (AMD64 and ARM64)** includes embedded Tesseract OCR - full functionality with no additional setup.
 
-**All other platforms** use CLI fallback for OCR. Install Tesseract for full OCR support:
+**macOS and Windows** use CLI fallback for OCR. Install Tesseract for full OCR support:
 - macOS: `brew install tesseract` or `sudo port install tesseract`
 - Windows: [UB Mannheim installer](https://github.com/UB-Mannheim/tesseract/wiki) or `choco install tesseract`
-- Linux ARM64: `sudo apt-get install tesseract-ocr`
 
 Non-OCR tools (image loading, cropping, color sampling, measurements, shape detection) work on all platforms without additional setup.
 

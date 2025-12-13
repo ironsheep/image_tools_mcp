@@ -320,7 +320,7 @@ Return a version of the image with a coordinate grid overlay.
 
 ## OCR Operations
 
-> **Note:** OCR tools require Tesseract on most platforms. See [INSTALL.md](../INSTALL.md) for setup instructions. Linux AMD64 binaries include embedded OCR.
+> **Note:** OCR tools require Tesseract on macOS and Windows. See [INSTALL.md](../INSTALL.md) for setup instructions. Linux binaries (AMD64 and ARM64) include embedded OCR.
 
 ### image_ocr_full
 

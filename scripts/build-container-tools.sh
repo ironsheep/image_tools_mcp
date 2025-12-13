@@ -91,18 +91,26 @@ build_binary_nocgo "darwin" "arm64" ""
 build_binary_nocgo "windows" "amd64" ".exe"
 
 # Linux: CGO enabled for native gosseract OCR (no external dependencies needed)
-# Note: Cross-compiling Linux with CGO requires matching architecture
+#
+# CI builds: Both linux-amd64 and linux-arm64 are built natively with CGO on
+#            their respective GitHub Actions runners (ubuntu-latest for amd64,
+#            ubuntu-24.04-arm for arm64). Both have embedded OCR.
+#
+# Local builds: Native arch gets CGO, cross-compiled arch falls back to CLI.
+#               This is fine for development; production releases use CI.
 if [ "$(uname -s)" = "Linux" ]; then
     HOST_ARCH=$(uname -m)
     case "$HOST_ARCH" in
         x86_64|amd64)
             build_binary_cgo "linux" "amd64" ""
-            # Cross-compile arm64 without CGO (will use CLI fallback)
+            # Cross-compile arm64 without CGO (CI builds this natively with CGO)
+            echo "Note: linux-arm64 built without CGO locally; CI builds with CGO"
             build_binary_nocgo "linux" "arm64" ""
             ;;
         aarch64|arm64)
             build_binary_cgo "linux" "arm64" ""
-            # Cross-compile amd64 without CGO (will use CLI fallback)
+            # Cross-compile amd64 without CGO (CI builds this natively with CGO)
+            echo "Note: linux-amd64 built without CGO locally; CI builds with CGO"
             build_binary_nocgo "linux" "amd64" ""
             ;;
         *)

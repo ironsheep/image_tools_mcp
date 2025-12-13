@@ -7,7 +7,7 @@ This guide covers installing Image Tools MCP Server on all supported platforms.
 | Platform | Architecture | OCR Support | Additional Setup |
 |----------|-------------|-------------|------------------|
 | Linux | AMD64 | Embedded | None required |
-| Linux | ARM64 | CLI fallback | Tesseract (optional) |
+| Linux | ARM64 | Embedded | None required |
 | macOS | AMD64 (Intel) | CLI fallback | Tesseract (optional) |
 | macOS | ARM64 (Apple Silicon) | CLI fallback | Tesseract (optional) |
 | Windows | AMD64 | CLI fallback | Tesseract (optional) |
@@ -21,12 +21,12 @@ This guide covers installing Image Tools MCP Server on all supported platforms.
 
 Download the appropriate binary for your platform from the [Releases](https://github.com/ironsheep/image_tools_mcp/releases) page:
 
-- `image-tools-mcp-v1.0.0-linux-amd64` - Linux 64-bit (recommended, includes embedded OCR)
-- `image-tools-mcp-v1.0.0-linux-arm64` - Linux ARM64 (Raspberry Pi, etc.)
-- `image-tools-mcp-v1.0.0-darwin-amd64` - macOS Intel
-- `image-tools-mcp-v1.0.0-darwin-arm64` - macOS Apple Silicon
-- `image-tools-mcp-v1.0.0-windows-amd64.exe` - Windows 64-bit
-- `image-tools-mcp-v1.0.0-windows-arm64.exe` - Windows ARM64
+- `image-tools-mcp-v*-linux-amd64` - Linux 64-bit (includes embedded OCR)
+- `image-tools-mcp-v*-linux-arm64` - Linux ARM64 (Raspberry Pi, etc., includes embedded OCR)
+- `image-tools-mcp-v*-darwin-amd64` - macOS Intel
+- `image-tools-mcp-v*-darwin-arm64` - macOS Apple Silicon
+- `image-tools-mcp-v*-windows-amd64.exe` - Windows 64-bit
+- `image-tools-mcp-v*-windows-arm64.exe` - Windows ARM64
 
 ### 2. Make Executable (Linux/macOS)
 
@@ -40,7 +40,7 @@ See [MCP Client Configuration](#mcp-client-configuration) below.
 
 ## Installing Tesseract (Optional)
 
-For full OCR functionality on platforms other than Linux AMD64, install Tesseract OCR:
+For full OCR functionality on macOS and Windows, install Tesseract OCR. Linux binaries (both AMD64 and ARM64) include embedded OCR and do not require Tesseract installation.
 
 ### macOS
 
@@ -54,7 +54,9 @@ brew install tesseract
 sudo port install tesseract
 ```
 
-### Linux (ARM64 or if not using embedded OCR)
+### Linux (only if building from source without CGO)
+
+The official Linux binaries include embedded OCR. These instructions are only needed if you build from source without CGO:
 
 **Ubuntu/Debian**:
 ```bash
@@ -102,11 +104,11 @@ You should see version information if installed correctly.
 
 For adding image analysis to existing Docker containers, use the container-tools package.
 
-**Note:** The container-tools package includes the Linux AMD64 binary with embedded OCR. If you need OCR on ARM64 containers, you'll need to install Tesseract separately (see examples below).
+**Note:** The container-tools package includes both Linux AMD64 and ARM64 binaries with embedded OCR. No additional Tesseract installation is required for OCR functionality on Linux containers.
 
 ### 1. Download Container Tools Package
 
-Download `image-tools-mcp-v1.0.0.tar.gz` from the [Releases](https://github.com/ironsheep/image_tools_mcp/releases) page.
+Download `image-tools-mcp-v*.tar.gz` from the [Releases](https://github.com/ironsheep/image_tools_mcp/releases) page.
 
 ### 2. Extract and Install
 
@@ -143,60 +145,33 @@ cp opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
 
 ### 3. Dockerfile Examples
 
-**Basic (AMD64 with embedded OCR):**
+**Basic (Linux AMD64 or ARM64 - embedded OCR, no dependencies):**
 ```dockerfile
-# Add to an existing container - OCR works out of the box
-COPY image-tools-mcp-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
+# Add to an existing container - OCR works out of the box on both architectures
+COPY image-tools-mcp-v*/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
 ```
 
-**Debian/Ubuntu-based containers (with Tesseract for ARM64):**
+The universal launcher automatically selects the correct binary for your architecture. Both Linux AMD64 and ARM64 binaries include embedded OCR with no external dependencies.
+
+**Note:** The following examples show how to install Tesseract if you need additional language packs beyond English, or if building from source without CGO:
+
+**Debian/Ubuntu-based containers (additional languages):**
 ```dockerfile
-# Install Tesseract for OCR support
+# Only needed for additional OCR languages beyond English
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    tesseract-ocr \
-    tesseract-ocr-eng \
+    tesseract-ocr-deu \
+    tesseract-ocr-fra \
     && rm -rf /var/lib/apt/lists/*
 
-COPY image-tools-mcp-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
+COPY image-tools-mcp-v*/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
 ```
 
-**Alpine-based containers:**
+**Alpine-based containers (additional languages):**
 ```dockerfile
-# Install Tesseract for OCR support
-RUN apk add --no-cache tesseract-ocr tesseract-ocr-data-eng
+# Only needed for additional OCR languages beyond English
+RUN apk add --no-cache tesseract-ocr-data-deu tesseract-ocr-data-fra
 
-COPY image-tools-mcp-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
-```
-
-**Red Hat/Fedora-based containers:**
-```dockerfile
-# Install Tesseract for OCR support
-RUN dnf install -y tesseract tesseract-langpack-eng && dnf clean all
-
-COPY image-tools-mcp-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
-```
-
-**Amazon Linux 2:**
-```dockerfile
-# Install Tesseract for OCR support
-RUN amazon-linux-extras install epel -y && \
-    yum install -y tesseract tesseract-langpack-eng && \
-    yum clean all
-
-COPY image-tools-mcp-v1.0.0/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
-```
-
-**Multi-stage build (minimal final image):**
-```dockerfile
-FROM debian:bookworm-slim
-
-# Install only runtime dependencies for Tesseract
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    tesseract-ocr \
-    tesseract-ocr-eng \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
+COPY image-tools-mcp-v*/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
 ```
 
 ## MCP Client Configuration
@@ -286,7 +261,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"image_ocr_
 
 This error appears when using OCR tools without Tesseract installed. Either:
 1. Install Tesseract following the instructions above
-2. Use Linux AMD64 binary which has embedded OCR
+2. Use a Linux binary (AMD64 or ARM64) which has embedded OCR
 3. Skip OCR tools if you don't need text extraction
 
 ### macOS "Unidentified Developer" Warning

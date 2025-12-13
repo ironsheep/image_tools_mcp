@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2025-12-13
+
+### Changed
+
+- **Linux ARM64 now includes embedded Tesseract OCR** - Both Linux platforms (AMD64 and ARM64) are now fully self-contained with no external dependencies required for OCR functionality
+- GitHub Actions release workflow now uses native ARM64 runners (`ubuntu-24.04-arm`) for Linux ARM64 builds, enabling CGO and embedded OCR support
+- Updated documentation to reflect that both Linux platforms have embedded OCR
+
+### Technical Details
+
+- Linux ARM64 binary now built with `CGO_ENABLED=1` on native ARM64 GitHub Actions runners (previously cross-compiled without CGO)
+- Container-tools package now includes two fully self-contained Linux binaries
+
+[1.0.1]: https://github.com/ironsheep/image_tools_mcp/releases/tag/v1.0.1
+
 ## [1.0.0] - 2025-12-12
 
 ### Added

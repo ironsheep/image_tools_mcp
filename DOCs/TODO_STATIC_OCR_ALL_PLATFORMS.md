@@ -3,7 +3,7 @@
 ## Overview
 
 Currently, we have:
-- **Linux**: Static tesseract linking with embedded tessdata (zero dependencies)
+- **Linux (AMD64 and ARM64)**: Static tesseract linking with embedded tessdata (zero dependencies)
 - **macOS/Windows**: CLI fallback (requires user to install tesseract)
 
 This document outlines how to achieve zero-dependency OCR on all platforms using GitHub Actions.
@@ -114,7 +114,7 @@ Extract on first run to:
 | Platform | Effort | Notes |
 |----------|--------|-------|
 | Linux x86_64 | ✅ Done | Static linking works |
-| Linux arm64 | 1 day | Need arm64 runner or cross-compile |
+| Linux arm64 | ✅ Done | Uses `ubuntu-24.04-arm` runner (public repos) |
 | macOS arm64 | 2-3 days | Build tesseract from source |
 | macOS x86_64 | 1 day | Same as arm64, different arch |
 | Windows | 3-4 days | vcpkg setup, CGO/MinGW complexity |
