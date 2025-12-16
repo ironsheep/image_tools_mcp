@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-12-16
+
+### Changed
+
+- **Container Tools packaging now follows the Integration Guide specification**
+  - Directory structure changed from `/opt/container-tools/opt/{mcp}/` to `/opt/container-tools/{mcp}/`
+  - Symlinks created in `/opt/container-tools/bin/` for easy PATH addition
+  - Hooks system support with `hooks-dispatcher.sh` and `hooks.d/` directory
+  - mcp.json now includes hooks configuration pointing to dispatcher
+
+### Added
+
+- **Enhanced install.sh** with full Container Tools Integration Guide compliance:
+  - `--target DIR` parameter for custom installation locations
+  - `--uninstall` flag with intelligent rollback (restores prior installation if available)
+  - `--help` option
+  - Skip-if-identical MD5 optimization (skips reinstall if binary unchanged)
+  - Single-depth `-prior` backups instead of timestamped
+  - mcp.json backup to MCP's territory before modifications
+  - Colored output and post-install verification
+- App-start hook for image-tools-mcp (placeholder for future initialization)
+- Container Tools MCP Integration Guide documentation
+
+### Removed
+
+- Old MCP Coexistence and Container Packaging guides (replaced by unified Integration Guide)
+
+[1.1.0]: https://github.com/ironsheep/image_tools_mcp/releases/tag/v1.1.0
+
 ## [1.0.1] - 2025-12-13
 
 ### Changed

@@ -112,35 +112,51 @@ Download `image-tools-mcp-v*.tar.gz` from the [Releases](https://github.com/iron
 
 ### 2. Extract and Install
 
-**Option A: Using the install script (recommended for /opt/container-tools)**
+**Option A: Using the install script (recommended)**
 
-The package includes an install script that safely installs alongside other MCP tools:
+The package includes an install script that safely installs alongside other MCP tools following the [Container Tools Integration Guide](DOCs/CONTAINER_TOOLS_MCP_INTEGRATION_GUIDE.md):
 
 ```bash
-tar -xzf image-tools-mcp-v1.0.0.tar.gz
-cd image-tools-mcp-v1.0.0
+tar -xzf image-tools-mcp-v1.1.0.tar.gz
+cd image-tools-mcp-v1.1.0
 sudo ./install.sh
 ```
 
 The install script will:
-- Install to `/opt/container-tools/opt/image-tools-mcp/`
-- Back up any existing installation before overwriting
+- Install to `/opt/container-tools/image-tools-mcp/`
+- Create a symlink at `/opt/container-tools/bin/image-tools-mcp`
+- Back up any existing installation with `-prior` suffix
 - Merge into existing `/opt/container-tools/etc/mcp.json` (preserves other MCP entries)
-- Create the config file if it doesn't exist
+- Install hooks dispatcher and app-start hook
+- Skip installation if the binary is already up-to-date (MD5 comparison)
 
 After installation, verify with:
 ```bash
-/opt/container-tools/opt/image-tools-mcp/bin/image-tools-mcp --version
+/opt/container-tools/image-tools-mcp/bin/image-tools-mcp --version
+# Or via symlink:
+/opt/container-tools/bin/image-tools-mcp --version
+```
+
+**Custom installation location:**
+```bash
+./install.sh --target /custom/path
+```
+
+**Uninstall or rollback:**
+```bash
+./install.sh --uninstall
+# If a prior installation exists, it will be restored
+# Otherwise, the MCP is fully removed
 ```
 
 **Option B: Manual copy to custom location**
 
 ```bash
-tar -xzf image-tools-mcp-v1.0.0.tar.gz
-cd image-tools-mcp-v1.0.0
+tar -xzf image-tools-mcp-v1.1.0.tar.gz
+cd image-tools-mcp-v1.1.0
 
 # Copy binary to your preferred location
-cp opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
+cp image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
 ```
 
 ### 3. Dockerfile Examples
@@ -148,7 +164,7 @@ cp opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
 **Basic (Linux AMD64 or ARM64 - embedded OCR, no dependencies):**
 ```dockerfile
 # Add to an existing container - OCR works out of the box on both architectures
-COPY image-tools-mcp-v*/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
+COPY image-tools-mcp-v*/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
 ```
 
 The universal launcher automatically selects the correct binary for your architecture. Both Linux AMD64 and ARM64 binaries include embedded OCR with no external dependencies.
@@ -163,7 +179,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr-fra \
     && rm -rf /var/lib/apt/lists/*
 
-COPY image-tools-mcp-v*/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
+COPY image-tools-mcp-v*/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
 ```
 
 **Alpine-based containers (additional languages):**
@@ -171,7 +187,7 @@ COPY image-tools-mcp-v*/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
 # Only needed for additional OCR languages beyond English
 RUN apk add --no-cache tesseract-ocr-data-deu tesseract-ocr-data-fra
 
-COPY image-tools-mcp-v*/opt/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
+COPY image-tools-mcp-v*/image-tools-mcp/bin/image-tools-mcp /usr/local/bin/
 ```
 
 ## MCP Client Configuration
