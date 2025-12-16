@@ -18,7 +18,7 @@ if [ -z "$VERSION" ]; then
 fi
 
 MCP_NAME="image-tools-mcp"
-PACKAGE_NAME="${MCP_NAME}-v${VERSION}"
+PACKAGE_NAME="container-tools-${MCP_NAME}-v${VERSION}"
 BUILD_DIR="${REPO_ROOT}/builds/container-tools"
 PACKAGE_DIR="${BUILD_DIR}/${PACKAGE_NAME}"
 
