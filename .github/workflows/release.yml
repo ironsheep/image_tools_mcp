@@ -517,7 +517,7 @@ jobs:
       - name: Create container-tools package structure
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
-          PACKAGE_DIR="image-tools-mcp-v${VERSION}"
+          PACKAGE_DIR="container_tools_image_tools_mcp_v${VERSION}"
           MCP_NAME="image-tools-mcp"
 
           mkdir -p "${PACKAGE_DIR}/opt/${MCP_NAME}/bin/platforms"
@@ -529,7 +529,7 @@ jobs:
       - name: Create universal launcher
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
-          PACKAGE_DIR="image-tools-mcp-v${VERSION}"
+          PACKAGE_DIR="container_tools_image_tools_mcp_v${VERSION}"
           MCP_NAME="image-tools-mcp"
 
           cat > "${PACKAGE_DIR}/opt/${MCP_NAME}/bin/${MCP_NAME}" << 'LAUNCHER'
@@ -582,7 +582,7 @@ jobs:
       - name: Create install script
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
-          PACKAGE_DIR="image-tools-mcp-v${VERSION}"
+          PACKAGE_DIR="container_tools_image_tools_mcp_v${VERSION}"
 
           cat > "${PACKAGE_DIR}/install.sh" << 'INSTALL'
           #!/bin/bash
@@ -640,7 +640,7 @@ jobs:
       - name: Create README and manifest
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
-          PACKAGE_DIR="image-tools-mcp-v${VERSION}"
+          PACKAGE_DIR="container_tools_image_tools_mcp_v${VERSION}"
           MCP_NAME="image-tools-mcp"
 
           cat > "${PACKAGE_DIR}/opt/${MCP_NAME}/README.md" << EOF
@@ -682,13 +682,13 @@ jobs:
       - name: Create tarball
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
-          tar -czf "image-tools-mcp-v${VERSION}.tar.gz" "image-tools-mcp-v${VERSION}"
+          tar -czf "container_tools_image_tools_mcp_v${VERSION}.tar.gz" "container_tools_image_tools_mcp_v${VERSION}"
 
       - name: Upload container-tools package
         uses: actions/upload-artifact@v4
         with:
           name: container-tools-package
-          path: image-tools-mcp-v*.tar.gz
+          path: container_tools_image_tools_mcp_v*.tar.gz
           retention-days: 1
 
   # Sign macOS binaries (optional)
@@ -963,8 +963,8 @@ jobs:
 
             ```bash
             # Download and extract
-            tar -xzf image-tools-mcp-${{ steps.version.outputs.VERSION }}.tar.gz
-            cd image-tools-mcp-${{ steps.version.outputs.VERSION }}
+            tar -xzf container_tools_image_tools_mcp_${{ steps.version.outputs.VERSION }}.tar.gz
+            cd container_tools_image_tools_mcp_${{ steps.version.outputs.VERSION }}
 
             # Install (creates or merges into /opt/container-tools/)
             ./install.sh
