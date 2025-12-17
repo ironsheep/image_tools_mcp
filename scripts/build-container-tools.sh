@@ -42,19 +42,20 @@ echo ""
 # Clean and create build directory
 # Structure per Container Tools Integration Guide:
 #   package-name/
-#   ├── image-tools-mcp/        # MCP's territory
-#   │   ├── bin/
-#   │   │   ├── image-tools-mcp (launcher)
-#   │   │   └── platforms/
-#   │   ├── install.sh
-#   │   └── README.md
 #   ├── etc/
 #   │   ├── hooks-dispatcher.sh
 #   │   └── hooks.d/
 #   │       └── app-start/
 #   │           └── image-tools-mcp.sh
-#   ├── install.sh              # Top-level installer
-#   └── VERSION_MANIFEST.txt
+#   └── image-tools-mcp/        # MCP's territory (all content here)
+#       ├── bin/
+#       │   ├── image-tools-mcp (launcher)
+#       │   └── platforms/
+#       ├── install.sh          # Installer lives inside MCP folder
+#       ├── LICENSE
+#       ├── CHANGELOG.md
+#       ├── README.md
+#       └── VERSION_MANIFEST.txt
 rm -rf "${PACKAGE_DIR}"
 mkdir -p "${PACKAGE_DIR}/${MCP_NAME}/bin/platforms"
 mkdir -p "${PACKAGE_DIR}/etc/hooks.d/app-start"
@@ -319,49 +320,9 @@ exit 0
 HOOK
 chmod +x "${PACKAGE_DIR}/etc/hooks.d/app-start/${MCP_NAME}.sh"
 
-echo "Creating test script..."
-
-# Create test-platforms.sh
-cat > "${PACKAGE_DIR}/${MCP_NAME}/test-platforms.sh" << 'TESTSCRIPT'
-#!/bin/bash
-#
-# Test that all platform binaries are valid executables
-#
-set -e
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLATFORMS_DIR="${SCRIPT_DIR}/bin/platforms"
-
-echo "Testing platform binaries..."
-echo ""
-
-for binary in "${PLATFORMS_DIR}"/*; do
-    name=$(basename "$binary")
-    # Skip tessdata directory
-    if [ -d "$binary" ]; then
-        continue
-    fi
-    printf "  %-45s " "$name"
-
-    if [ -x "$binary" ] || [[ "$name" == *.exe ]]; then
-        # Check if it's a valid executable (file magic)
-        file_type=$(file -b "$binary" 2>/dev/null || echo "unknown")
-        if echo "$file_type" | grep -qiE 'executable|mach-o|pe32|elf'; then
-            echo "OK (${file_type:0:30}...)"
-        else
-            echo "WARN: ${file_type:0:40}"
-        fi
-    else
-        echo "FAIL: not executable"
-    fi
-done
-
-echo ""
-echo "Testing launcher..."
-"${SCRIPT_DIR}/bin/image-tools-mcp" --version && echo "Launcher: OK" || echo "Launcher: FAIL"
-TESTSCRIPT
-
-chmod +x "${PACKAGE_DIR}/${MCP_NAME}/test-platforms.sh"
+echo "Copying LICENSE and CHANGELOG..."
+cp "${REPO_ROOT}/LICENSE" "${PACKAGE_DIR}/${MCP_NAME}/"
+cp "${REPO_ROOT}/CHANGELOG.md" "${PACKAGE_DIR}/${MCP_NAME}/"
 
 echo "Creating README..."
 
@@ -423,7 +384,7 @@ Manual configuration (if needed):
   "mcpServers": {
     "image-tools-mcp": {
       "command": "/opt/container-tools/image-tools-mcp/bin/image-tools-mcp",
-      "args": []
+      "args": ["--mode", "stdio"]
     }
   }
 }
@@ -448,8 +409,8 @@ README
 
 echo "Creating install script..."
 
-# Create install.sh (following Container Tools Integration Guide template)
-cat > "${PACKAGE_DIR}/install.sh" << 'INSTALL'
+# Create install.sh INSIDE the MCP folder (following Container Tools Integration Guide)
+cat > "${PACKAGE_DIR}/${MCP_NAME}/install.sh" << 'INSTALL'
 #!/bin/bash
 #
 # image-tools-mcp installer for container-tools
@@ -516,8 +477,10 @@ need_sudo() {
 }
 SUDO=$(need_sudo)
 
-# Get script directory (where the package was extracted)
+# Get script directory (install.sh is inside the MCP folder)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Package root is parent of MCP folder (contains etc/)
+PACKAGE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 #
 # PLATFORM DETECTION
@@ -540,17 +503,21 @@ if [ "$UNINSTALL" = true ]; then
     info "Uninstalling $YOUR_MCP from $TARGET..."
 
     # Check if we have a prior installation to roll back to
-    if [ -d "$TARGET/$YOUR_MCP-prior" ]; then
+    # Prior installation is stored inside: $TARGET/$YOUR_MCP/backup/prior/
+    if [ -d "$TARGET/$YOUR_MCP/backup/prior" ]; then
         info "Prior installation found - performing rollback..."
 
-        # 1. Remove current installation
+        # 1. Move prior installation to temp location (it's inside current installation)
+        $SUDO mv "$TARGET/$YOUR_MCP/backup/prior" "/tmp/$YOUR_MCP-restore"
+
+        # 2. Remove current installation
         $SUDO rm -rf "$TARGET/$YOUR_MCP"
 
-        # 2. Restore prior installation
-        $SUDO mv "$TARGET/$YOUR_MCP-prior" "$TARGET/$YOUR_MCP"
+        # 3. Restore prior installation from temp
+        $SUDO mv "/tmp/$YOUR_MCP-restore" "$TARGET/$YOUR_MCP"
         info "Restored prior installation"
 
-        # 3. Rollback mcp.json entry (merge prior entry into current mcp.json)
+        # 4. Rollback mcp.json entry (merge prior entry into current mcp.json)
         PRIOR_MCP_JSON="$TARGET/$YOUR_MCP/backup/mcp.json-prior"
         CURRENT_MCP_JSON="$TARGET/etc/mcp.json"
 
@@ -570,7 +537,7 @@ if [ "$UNINSTALL" = true ]; then
             warn "Could not rollback mcp.json entry (jq not found or no prior backup)"
         fi
 
-        # 4. Update symlink to point to restored version
+        # 5. Update symlink to point to restored version
         case "$OSTYPE" in
             msys*|cygwin*|win32*) ;;
             *)
@@ -613,7 +580,7 @@ fi
 
 # Check if already up to date (skip-if-identical optimization)
 PLATFORM=$(detect_platform)
-SOURCE_BIN=$(find "$SCRIPT_DIR/$YOUR_MCP/bin/platforms" -name "*-${PLATFORM}" -o -name "*-${PLATFORM}.exe" 2>/dev/null | head -1)
+SOURCE_BIN=$(find "$SCRIPT_DIR/bin/platforms" -name "*-${PLATFORM}" -o -name "*-${PLATFORM}.exe" 2>/dev/null | head -1)
 DEST_BIN=$(find "$TARGET/$YOUR_MCP/bin/platforms" -name "*-${PLATFORM}" -o -name "*-${PLATFORM}.exe" 2>/dev/null | head -1)
 
 if [ -n "$SOURCE_BIN" ] && [ -n "$DEST_BIN" ]; then
@@ -645,40 +612,50 @@ fi
 $SUDO mkdir -p "$TARGET/bin"
 $SUDO mkdir -p "$TARGET/etc/hooks.d/app-start"
 
-# 2. Backup existing mcp.json to our territory
-if [ -f "$TARGET/etc/mcp.json" ]; then
-    $SUDO mkdir -p "$TARGET/$YOUR_MCP/backup"
-    $SUDO cp "$TARGET/etc/mcp.json" "$TARGET/$YOUR_MCP/backup/mcp.json-prior"
-    info "Backed up mcp.json to $YOUR_MCP/backup/"
-fi
-
-# 3. Backup existing installation with -prior suffix (depth of 1)
+# 2. Backup existing installation (if any) to temp, then install new, then move backup inside
+PRIOR_TEMP=""
 if [ -d "$TARGET/$YOUR_MCP" ]; then
     info "Backing up previous installation..."
-    $SUDO rm -rf "$TARGET/$YOUR_MCP-prior"
-    $SUDO mv "$TARGET/$YOUR_MCP" "$TARGET/$YOUR_MCP-prior"
+
+    # Backup mcp.json to existing installation (so it travels with the backup)
+    if [ -f "$TARGET/etc/mcp.json" ]; then
+        $SUDO mkdir -p "$TARGET/$YOUR_MCP/backup"
+        $SUDO cp "$TARGET/etc/mcp.json" "$TARGET/$YOUR_MCP/backup/mcp.json-prior"
+    fi
+
+    # Move existing installation to temp (removing any old temp backup)
+    $SUDO rm -rf "/tmp/$YOUR_MCP-prior"
+    $SUDO mv "$TARGET/$YOUR_MCP" "/tmp/$YOUR_MCP-prior"
+    PRIOR_TEMP="/tmp/$YOUR_MCP-prior"
 fi
 
-# 4. Install MCP directory
+# 3. Install MCP directory (SCRIPT_DIR is the MCP folder itself)
 info "Installing $YOUR_MCP..."
-$SUDO cp -r "$SCRIPT_DIR/$YOUR_MCP" "$TARGET/"
+$SUDO cp -r "$SCRIPT_DIR" "$TARGET/$YOUR_MCP"
+
+# 4. Move prior installation into new installation's backup/prior/
+if [ -n "$PRIOR_TEMP" ] && [ -d "$PRIOR_TEMP" ]; then
+    $SUDO mkdir -p "$TARGET/$YOUR_MCP/backup"
+    $SUDO rm -rf "$TARGET/$YOUR_MCP/backup/prior"
+    $SUDO mv "$PRIOR_TEMP" "$TARGET/$YOUR_MCP/backup/prior"
+    info "Prior installation saved to $YOUR_MCP/backup/prior/"
+fi
 
 # Ensure binaries are executable
 $SUDO chmod +x "$TARGET/$YOUR_MCP/bin/$YOUR_MCP"
 $SUDO chmod +x "$TARGET/$YOUR_MCP/bin/platforms"/* 2>/dev/null || true
-$SUDO chmod +x "$TARGET/$YOUR_MCP/test-platforms.sh" 2>/dev/null || true
 
 # 5. Install hooks dispatcher if missing
 if [ ! -f "$TARGET/etc/hooks-dispatcher.sh" ]; then
     info "Installing hooks dispatcher..."
-    $SUDO cp "$SCRIPT_DIR/etc/hooks-dispatcher.sh" "$TARGET/etc/"
+    $SUDO cp "$PACKAGE_ROOT/etc/hooks-dispatcher.sh" "$TARGET/etc/"
     $SUDO chmod +x "$TARGET/etc/hooks-dispatcher.sh"
 fi
 
 # 6. Install our hooks
 info "Installing hooks..."
-if [ -f "$SCRIPT_DIR/etc/hooks.d/app-start/$YOUR_MCP.sh" ]; then
-    $SUDO cp "$SCRIPT_DIR/etc/hooks.d/app-start/$YOUR_MCP.sh" "$TARGET/etc/hooks.d/app-start/"
+if [ -f "$PACKAGE_ROOT/etc/hooks.d/app-start/$YOUR_MCP.sh" ]; then
+    $SUDO cp "$PACKAGE_ROOT/etc/hooks.d/app-start/$YOUR_MCP.sh" "$TARGET/etc/hooks.d/app-start/"
     $SUDO chmod +x "$TARGET/etc/hooks.d/app-start/$YOUR_MCP.sh"
 fi
 
@@ -706,7 +683,7 @@ if [ ! -f "$MCP_JSON" ]; then
   "mcpServers": {
     "$YOUR_MCP": {
       "command": "$YOUR_COMMAND",
-      "args": []
+      "args": ["--mode", "stdio"]
     }
   },
   "hooks": {
@@ -721,7 +698,7 @@ elif command -v jq &> /dev/null; then
     $SUDO jq --arg name "$YOUR_MCP" \
        --arg cmd "$YOUR_COMMAND" \
        --arg dispatcher "$DISPATCHER" \
-       '.mcpServers[$name] = {"command": $cmd, "args": []} |
+       '.mcpServers[$name] = {"command": $cmd, "args": ["--mode", "stdio"]} |
         .hooks["app-start"] = "\($dispatcher) app-start" |
         .hooks["compact-start"] = "\($dispatcher) compact-start" |
         .hooks["compact-end"] = "\($dispatcher) compact-end"' \
@@ -729,7 +706,11 @@ elif command -v jq &> /dev/null; then
     $SUDO mv "/tmp/mcp.json.tmp" "$MCP_JSON"
 else
     warn "jq not found - please manually configure mcp.json"
-    warn "Add $YOUR_MCP entry pointing to: $YOUR_COMMAND"
+    warn "Add this to $MCP_JSON under 'mcpServers':"
+    warn '  "'$YOUR_MCP'": {'
+    warn '    "command": "'$YOUR_COMMAND'",'
+    warn '    "args": ["--mode", "stdio"]'
+    warn '  }'
 fi
 
 # 9. Verify installation
@@ -769,14 +750,14 @@ echo "  ./install.sh --uninstall"
 echo ""
 INSTALL
 
-# Replace version placeholder in install.sh
-sed -i "s/__VERSION__/${VERSION}/g" "${PACKAGE_DIR}/install.sh"
-chmod +x "${PACKAGE_DIR}/install.sh"
+# Replace version placeholder in install.sh (now inside MCP folder)
+sed -i "s/__VERSION__/${VERSION}/g" "${PACKAGE_DIR}/${MCP_NAME}/install.sh"
+chmod +x "${PACKAGE_DIR}/${MCP_NAME}/install.sh"
 
 echo "Creating VERSION_MANIFEST.txt..."
 
 # Create VERSION_MANIFEST.txt
-cat > "${PACKAGE_DIR}/VERSION_MANIFEST.txt" << MANIFEST
+cat > "${PACKAGE_DIR}/${MCP_NAME}/VERSION_MANIFEST.txt" << MANIFEST
 Package: ${MCP_NAME}
 Version: ${VERSION}
 Git Commit: ${GIT_COMMIT}
@@ -818,5 +799,5 @@ echo ""
 echo "To install:"
 echo "  tar -xzf ${PACKAGE_NAME}.tar.gz"
 echo "  cd ${PACKAGE_NAME}"
-echo "  ./install.sh"
+echo "  ./${MCP_NAME}/install.sh"
 echo ""
