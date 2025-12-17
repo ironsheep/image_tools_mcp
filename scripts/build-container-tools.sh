@@ -156,9 +156,23 @@ cat > "${PACKAGE_DIR}/${MCP_NAME}/bin/${MCP_NAME}" << 'LAUNCHER'
 set -e
 
 LAUNCHER_VERSION="__VERSION__"
-BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLATFORMS_DIR="${BIN_DIR}/platforms"
 MCP_NAME="image-tools-mcp"
+
+# Resolve the real path of this script, following symlinks
+# This is needed when the launcher is invoked via /opt/container-tools/bin/ symlink
+resolve_script_path() {
+    local script="${BASH_SOURCE[0]}"
+    while [ -L "$script" ]; do
+        local script_dir="$(cd "$(dirname "$script")" && pwd)"
+        script="$(readlink "$script")"
+        # If relative symlink, resolve it relative to the symlink's directory
+        [[ "$script" != /* ]] && script="$script_dir/$script"
+    done
+    cd "$(dirname "$script")" && pwd
+}
+
+BIN_DIR="$(resolve_script_path)"
+PLATFORMS_DIR="${BIN_DIR}/platforms"
 
 # Debug mode
 debug() {

@@ -49,3 +49,5 @@ builds/
 
 # Tessdata files (downloaded at build time by scripts/ensure-tessdata.sh)
 internal/ocr/tessdata/*.traineddata
+DOCs/DO-NOT-USE.zip
+.DS_Store
