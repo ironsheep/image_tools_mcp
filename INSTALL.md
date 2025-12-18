@@ -108,7 +108,7 @@ For adding image analysis to existing Docker containers, use the container-tools
 
 ### 1. Download Container Tools Package
 
-Download `image-tools-mcp-v*.tar.gz` from the [Releases](https://github.com/ironsheep/image_tools_mcp/releases) page.
+Download `container-tools-image-tools-mcp-v*.tar.gz` from the [Releases](https://github.com/ironsheep/image_tools_mcp/releases) page.
 
 ### 2. Extract and Install
 
@@ -117,15 +117,15 @@ Download `image-tools-mcp-v*.tar.gz` from the [Releases](https://github.com/iron
 The package includes an install script that safely installs alongside other MCP tools following the [Container Tools Integration Guide](DOCs/CONTAINER_TOOLS_MCP_INTEGRATION_GUIDE.md):
 
 ```bash
-tar -xzf image-tools-mcp-v1.1.0.tar.gz
-cd image-tools-mcp-v1.1.0
-sudo ./install.sh
+tar -xzf container-tools-image-tools-mcp-v1.2.0.tar.gz
+cd container-tools-image-tools-mcp-v1.2.0
+sudo ./image-tools-mcp/install.sh
 ```
 
 The install script will:
 - Install to `/opt/container-tools/image-tools-mcp/`
 - Create a symlink at `/opt/container-tools/bin/image-tools-mcp`
-- Back up any existing installation with `-prior` suffix
+- Back up any existing installation to `backup/prior/` inside the MCP folder
 - Merge into existing `/opt/container-tools/etc/mcp.json` (preserves other MCP entries)
 - Install hooks dispatcher and app-start hook
 - Skip installation if the binary is already up-to-date (MD5 comparison)
@@ -139,12 +139,12 @@ After installation, verify with:
 
 **Custom installation location:**
 ```bash
-./install.sh --target /custom/path
+./image-tools-mcp/install.sh --target /custom/path
 ```
 
 **Uninstall or rollback:**
 ```bash
-./install.sh --uninstall
+./image-tools-mcp/install.sh --uninstall
 # If a prior installation exists, it will be restored
 # Otherwise, the MCP is fully removed
 ```
@@ -152,8 +152,8 @@ After installation, verify with:
 **Option B: Manual copy to custom location**
 
 ```bash
-tar -xzf image-tools-mcp-v1.1.0.tar.gz
-cd image-tools-mcp-v1.1.0
+tar -xzf container-tools-image-tools-mcp-v1.2.0.tar.gz
+cd container-tools-image-tools-mcp-v1.2.0
 
 # Copy binary to your preferred location
 cp image-tools-mcp/bin/image-tools-mcp /usr/local/bin/

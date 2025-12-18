@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-12-18
+
+### Changed
+
+- **Restructured container-tools package layout**:
+  - `install.sh`, `LICENSE`, `CHANGELOG.md`, and `VERSION_MANIFEST.txt` now live inside the MCP folder (`image-tools-mcp/`) rather than at package root
+  - Installation command changed from `./install.sh` to `./image-tools-mcp/install.sh`
+  - Backup location changed from peer folder (`{mcp}-prior/`) to inside MCP folder (`{mcp}/backup/prior/`)
+  - Removed `test-platforms.sh` from distribution package
+
+- **Fixed mcp.json configuration** to include required `--mode stdio` argument for MCP server startup
+
+### Updated
+
+- Container Tools MCP Integration Guide updated to reflect new package structure
+- All installation documentation updated with new paths and commands
+
+[1.2.0]: https://github.com/ironsheep/image_tools_mcp/releases/tag/v1.2.0
+
 ## [1.1.1] - 2025-12-16
 
 ### Changed
@@ -30,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `--uninstall` flag with intelligent rollback (restores prior installation if available)
   - `--help` option
   - Skip-if-identical MD5 optimization (skips reinstall if binary unchanged)
-  - Single-depth `-prior` backups instead of timestamped
+  - Single-depth backups (changed to `backup/prior/` in v1.2.0)
   - mcp.json backup to MCP's territory before modifications
   - Colored output and post-install verification
 - App-start hook for image-tools-mcp (placeholder for future initialization)
