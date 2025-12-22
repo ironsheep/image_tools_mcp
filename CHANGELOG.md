@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2025-12-22
+
+### Removed
+
+- **Removed deprecated hooks-dispatcher pattern** from container-tools package
+  - This MCP is stateless and doesn't require hooks to function
+  - Removed `etc/hooks-dispatcher.sh` and `etc/hooks.d/` from package
+  - Simplified install.sh to only manage `mcp.json` (no settings.json hooks)
+  - `mcp.json` now only contains `mcpServers` key (no hooks key)
+
+### Added
+
+- **Legacy cleanup function** in installer to migrate existing installations
+  - Automatically removes old hooks-dispatcher infrastructure
+  - Cleans up obsolete hooks key from mcp.json
+
+### Changed
+
+- **Simplified package structure** - now contains only essential files:
+  - `image-tools-mcp/bin/` - launcher and platform binaries
+  - `image-tools-mcp/install.sh` - simplified installer
+  - Documentation files (README, LICENSE, CHANGELOG, VERSION_MANIFEST)
+
+[1.2.1]: https://github.com/ironsheep/image_tools_mcp/releases/tag/v1.2.1
+
 ## [1.2.0] - 2025-12-18
 
 ### Changed
