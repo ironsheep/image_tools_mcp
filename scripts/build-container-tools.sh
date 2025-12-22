@@ -42,11 +42,6 @@ echo ""
 # Clean and create build directory
 # Structure per Container Tools Integration Guide:
 #   package-name/
-#   ├── etc/
-#   │   ├── hooks-dispatcher.sh
-#   │   └── hooks.d/
-#   │       └── app-start/
-#   │           └── image-tools-mcp.sh
 #   └── image-tools-mcp/        # MCP's territory (all content here)
 #       ├── bin/
 #       │   ├── image-tools-mcp (launcher)
@@ -58,7 +53,6 @@ echo ""
 #       └── VERSION_MANIFEST.txt
 rm -rf "${PACKAGE_DIR}"
 mkdir -p "${PACKAGE_DIR}/${MCP_NAME}/bin/platforms"
-mkdir -p "${PACKAGE_DIR}/etc/hooks.d/app-start"
 
 # Build function for non-CGO platforms (macOS, Windows)
 build_binary_nocgo() {
@@ -248,85 +242,13 @@ LAUNCHER
 sed -i "s/__VERSION__/${VERSION}/g" "${PACKAGE_DIR}/${MCP_NAME}/bin/${MCP_NAME}"
 chmod +x "${PACKAGE_DIR}/${MCP_NAME}/bin/${MCP_NAME}"
 
-echo "Creating hooks dispatcher..."
-
-# Create hooks-dispatcher.sh (per integration guide)
-cat > "${PACKAGE_DIR}/etc/hooks-dispatcher.sh" << 'DISPATCHER'
-#!/bin/bash
-#
-# Container Tools Hook Dispatcher
-# Runs all hook scripts for a given hook type
-#
-# Usage: hooks-dispatcher.sh <hook-type>
-# Example: hooks-dispatcher.sh app-start
-#
-
-set -e
-
-HOOK_TYPE="$1"
-HOOKS_DIR="/opt/container-tools/etc/hooks.d/${HOOK_TYPE}"
-
-if [ -z "$HOOK_TYPE" ]; then
-    echo "Usage: $0 <hook-type>" >&2
-    exit 1
-fi
-
-if [ ! -d "$HOOKS_DIR" ]; then
-    # No hooks registered for this type - that's okay
-    exit 0
-fi
-
-# Run all executable scripts in alphabetical order
-for script in "$HOOKS_DIR"/*.sh; do
-    if [ -f "$script" ] && [ -x "$script" ]; then
-        if [ -n "$CONTAINER_TOOLS_DEBUG" ]; then
-            echo "[hooks-dispatcher] Running: $script" >&2
-        fi
-
-        # Run hook, capture errors but don't stop other hooks
-        if ! "$script"; then
-            echo "[hooks-dispatcher] Warning: $script failed" >&2
-        fi
-    fi
-done
-
-exit 0
-DISPATCHER
-chmod +x "${PACKAGE_DIR}/etc/hooks-dispatcher.sh"
-
-echo "Creating app-start hook..."
-
-# Create image-tools-mcp app-start hook
-cat > "${PACKAGE_DIR}/etc/hooks.d/app-start/${MCP_NAME}.sh" << 'HOOK'
-#!/bin/bash
-#
-# image-tools-mcp app-start hook
-# Called when Claude Code starts
-#
-# This hook can be used for:
-# - Verifying dependencies are available
-# - Initializing cache directories
-# - Logging startup events
-#
-
-# Currently a placeholder - image-tools-mcp doesn't require initialization
-# but having the hook in place follows the container-tools pattern
-
-if [ -n "$CONTAINER_TOOLS_DEBUG" ]; then
-    echo "[image-tools-mcp] App start hook executed" >&2
-fi
-
-exit 0
-HOOK
-chmod +x "${PACKAGE_DIR}/etc/hooks.d/app-start/${MCP_NAME}.sh"
-
 echo "Copying LICENSE and CHANGELOG..."
 cp "${REPO_ROOT}/LICENSE" "${PACKAGE_DIR}/${MCP_NAME}/"
 cp "${REPO_ROOT}/CHANGELOG.md" "${PACKAGE_DIR}/${MCP_NAME}/"
 
 echo "Creating README..."
 
-# Create README (with correct paths per integration guide)
+# Create README
 cat > "${PACKAGE_DIR}/${MCP_NAME}/README.md" << README
 # Image Tools MCP v${VERSION}
 
@@ -479,8 +401,6 @@ SUDO=$(need_sudo)
 
 # Get script directory (install.sh is inside the MCP folder)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Package root is parent of MCP folder (contains etc/)
-PACKAGE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 #
 # PLATFORM DETECTION
@@ -497,17 +417,44 @@ detect_platform() {
 }
 
 #
+# LEGACY CLEANUP (migrate from hooks-dispatcher pattern)
+#
+cleanup_legacy_hooks() {
+    # Remove obsolete hooks-dispatcher if no other MCPs use hooks.d
+    if [ -f "$TARGET/etc/hooks-dispatcher.sh" ]; then
+        local hooks_d_count=0
+        if [ -d "$TARGET/etc/hooks.d" ]; then
+            hooks_d_count=$(find "$TARGET/etc/hooks.d" -type f -name "*.sh" 2>/dev/null | wc -l)
+        fi
+
+        if [ "$hooks_d_count" -eq 0 ]; then
+            $SUDO rm -f "$TARGET/etc/hooks-dispatcher.sh"
+            $SUDO rm -rf "$TARGET/etc/hooks.d"
+            info "Cleaned up obsolete hooks-dispatcher"
+        fi
+    fi
+
+    # Remove old hook format from mcp.json (hooks key doesn't belong there)
+    if [ -f "$TARGET/etc/mcp.json" ] && command -v jq &> /dev/null; then
+        if jq -e '.hooks' "$TARGET/etc/mcp.json" > /dev/null 2>&1; then
+            $SUDO jq 'del(.hooks)' "$TARGET/etc/mcp.json" > "/tmp/mcp.json.tmp"
+            $SUDO mv "/tmp/mcp.json.tmp" "$TARGET/etc/mcp.json"
+            info "Removed obsolete hooks from mcp.json"
+        fi
+    fi
+}
+
+#
 # UNINSTALL / ROLLBACK
 #
 if [ "$UNINSTALL" = true ]; then
     info "Uninstalling $YOUR_MCP from $TARGET..."
 
     # Check if we have a prior installation to roll back to
-    # Prior installation is stored inside: $TARGET/$YOUR_MCP/backup/prior/
     if [ -d "$TARGET/$YOUR_MCP/backup/prior" ]; then
         info "Prior installation found - performing rollback..."
 
-        # 1. Move prior installation to temp location (it's inside current installation)
+        # 1. Move prior installation to temp location
         $SUDO mv "$TARGET/$YOUR_MCP/backup/prior" "/tmp/$YOUR_MCP-restore"
 
         # 2. Remove current installation
@@ -522,19 +469,15 @@ if [ "$UNINSTALL" = true ]; then
         CURRENT_MCP_JSON="$TARGET/etc/mcp.json"
 
         if [ -f "$PRIOR_MCP_JSON" ] && command -v jq &> /dev/null; then
-            # Extract our entry from the prior mcp.json
             PRIOR_ENTRY=$($SUDO cat "$PRIOR_MCP_JSON" | jq ".mcpServers[\"$YOUR_MCP\"]")
 
             if [ "$PRIOR_ENTRY" != "null" ]; then
-                # Merge prior entry into current mcp.json (preserves other MCPs)
                 $SUDO jq --argjson entry "$PRIOR_ENTRY" \
                    ".mcpServers[\"$YOUR_MCP\"] = \$entry" \
                    "$CURRENT_MCP_JSON" > "/tmp/mcp.json.tmp"
                 $SUDO mv "/tmp/mcp.json.tmp" "$CURRENT_MCP_JSON"
                 info "Rolled back mcp.json entry to prior version"
             fi
-        else
-            warn "Could not rollback mcp.json entry (jq not found or no prior backup)"
         fi
 
         # 5. Update symlink to point to restored version
@@ -556,17 +499,12 @@ if [ "$UNINSTALL" = true ]; then
         # Remove our symlink
         $SUDO rm -f "$TARGET/bin/$YOUR_MCP"
 
-        # Remove our hooks
-        $SUDO find "$TARGET/etc/hooks.d" -name "$YOUR_MCP.sh" -delete 2>/dev/null || true
-
         # Remove our entry from mcp.json
         if command -v jq &> /dev/null && [ -f "$TARGET/etc/mcp.json" ]; then
             $SUDO jq "del(.mcpServers[\"$YOUR_MCP\"])" \
                "$TARGET/etc/mcp.json" > "/tmp/mcp.json.tmp"
             $SUDO mv "/tmp/mcp.json.tmp" "$TARGET/etc/mcp.json"
             info "Removed $YOUR_MCP from mcp.json"
-        else
-            warn "Please manually remove '$YOUR_MCP' from $TARGET/etc/mcp.json"
         fi
 
         info "Uninstall complete"
@@ -603,14 +541,12 @@ info "Target: $TARGET"
 if [ ! -d "$TARGET" ]; then
     info "Creating container-tools directory structure..."
     $SUDO mkdir -p "$TARGET/bin"
-    $SUDO mkdir -p "$TARGET/etc/hooks.d/app-start"
-    $SUDO mkdir -p "$TARGET/etc/hooks.d/compact-start"
-    $SUDO mkdir -p "$TARGET/etc/hooks.d/compact-end"
+    $SUDO mkdir -p "$TARGET/etc"
 fi
 
 # Ensure subdirectories exist
 $SUDO mkdir -p "$TARGET/bin"
-$SUDO mkdir -p "$TARGET/etc/hooks.d/app-start"
+$SUDO mkdir -p "$TARGET/etc"
 
 # 2. Backup existing installation (if any) to temp, then install new, then move backup inside
 PRIOR_TEMP=""
@@ -618,10 +554,8 @@ if [ -d "$TARGET/$YOUR_MCP" ]; then
     info "Backing up previous installation..."
 
     # Backup mcp.json to existing installation (so it travels with the backup)
-    if [ -f "$TARGET/etc/mcp.json" ]; then
-        $SUDO mkdir -p "$TARGET/$YOUR_MCP/backup"
-        $SUDO cp "$TARGET/etc/mcp.json" "$TARGET/$YOUR_MCP/backup/mcp.json-prior"
-    fi
+    $SUDO mkdir -p "$TARGET/$YOUR_MCP/backup"
+    [ -f "$TARGET/etc/mcp.json" ] && $SUDO cp "$TARGET/etc/mcp.json" "$TARGET/$YOUR_MCP/backup/mcp.json-prior"
 
     # Move existing installation to temp (removing any old temp backup)
     $SUDO rm -rf "/tmp/$YOUR_MCP-prior"
@@ -641,25 +575,11 @@ if [ -n "$PRIOR_TEMP" ] && [ -d "$PRIOR_TEMP" ]; then
     info "Prior installation saved to $YOUR_MCP/backup/prior/"
 fi
 
-# Ensure binaries are executable
+# 5. Ensure binaries are executable
 $SUDO chmod +x "$TARGET/$YOUR_MCP/bin/$YOUR_MCP"
 $SUDO chmod +x "$TARGET/$YOUR_MCP/bin/platforms"/* 2>/dev/null || true
 
-# 5. Install hooks dispatcher if missing
-if [ ! -f "$TARGET/etc/hooks-dispatcher.sh" ]; then
-    info "Installing hooks dispatcher..."
-    $SUDO cp "$PACKAGE_ROOT/etc/hooks-dispatcher.sh" "$TARGET/etc/"
-    $SUDO chmod +x "$TARGET/etc/hooks-dispatcher.sh"
-fi
-
-# 6. Install our hooks
-info "Installing hooks..."
-if [ -f "$PACKAGE_ROOT/etc/hooks.d/app-start/$YOUR_MCP.sh" ]; then
-    $SUDO cp "$PACKAGE_ROOT/etc/hooks.d/app-start/$YOUR_MCP.sh" "$TARGET/etc/hooks.d/app-start/"
-    $SUDO chmod +x "$TARGET/etc/hooks.d/app-start/$YOUR_MCP.sh"
-fi
-
-# 7. Create symlink (Linux/macOS only)
+# 6. Create symlink (Linux/macOS only)
 case "$OSTYPE" in
     msys*|cygwin*|win32*)
         warn "Windows detected - skipping symlink"
@@ -671,10 +591,9 @@ case "$OSTYPE" in
         ;;
 esac
 
-# 8. Update mcp.json
+# 7. Update mcp.json (MCP server definition only)
 MCP_JSON="$TARGET/etc/mcp.json"
 YOUR_COMMAND="$TARGET/$YOUR_MCP/bin/$YOUR_MCP"
-DISPATCHER="$TARGET/etc/hooks-dispatcher.sh"
 
 if [ ! -f "$MCP_JSON" ]; then
     info "Creating mcp.json..."
@@ -685,11 +604,6 @@ if [ ! -f "$MCP_JSON" ]; then
       "command": "$YOUR_COMMAND",
       "args": ["--mode", "stdio"]
     }
-  },
-  "hooks": {
-    "app-start": "$DISPATCHER app-start",
-    "compact-start": "$DISPATCHER compact-start",
-    "compact-end": "$DISPATCHER compact-end"
   }
 }
 MCPEOF
@@ -697,11 +611,7 @@ elif command -v jq &> /dev/null; then
     info "Merging into mcp.json..."
     $SUDO jq --arg name "$YOUR_MCP" \
        --arg cmd "$YOUR_COMMAND" \
-       --arg dispatcher "$DISPATCHER" \
-       '.mcpServers[$name] = {"command": $cmd, "args": ["--mode", "stdio"]} |
-        .hooks["app-start"] = "\($dispatcher) app-start" |
-        .hooks["compact-start"] = "\($dispatcher) compact-start" |
-        .hooks["compact-end"] = "\($dispatcher) compact-end"' \
+       '.mcpServers[$name] = {"command": $cmd, "args": ["--mode", "stdio"]}' \
        "$MCP_JSON" > "/tmp/mcp.json.tmp"
     $SUDO mv "/tmp/mcp.json.tmp" "$MCP_JSON"
 else
@@ -712,6 +622,9 @@ else
     warn '    "args": ["--mode", "stdio"]'
     warn '  }'
 fi
+
+# 8. Clean up legacy hooks-dispatcher pattern (if migrating from old version)
+cleanup_legacy_hooks
 
 # 9. Verify installation
 echo ""
@@ -734,11 +647,11 @@ echo ""
 echo -e "${BLUE}Next steps:${NC}"
 case "$OSTYPE" in
     msys*|cygwin*|win32*)
-        echo "  1. Add $TARGET/$YOUR_MCP/bin to your PATH"
-        ;;
-    *)
-        echo "  1. Add $TARGET/bin to your PATH (if not already)"
-        ;;
+    echo "  1. Add $TARGET/$YOUR_MCP/bin to your PATH"
+    ;;
+*)
+    echo "  1. Add $TARGET/bin to your PATH (if not already)"
+    ;;
 esac
 echo "  2. Restart Claude Code to load the new MCP"
 echo ""
@@ -767,7 +680,6 @@ Build Host: $(hostname 2>/dev/null || echo "unknown")
 Directory Structure:
   ${MCP_NAME}/           - MCP installation directory
   ${MCP_NAME}/bin/       - Universal launcher and platform binaries
-  etc/                   - Shared configuration (hooks dispatcher)
 
 Platforms:
   - darwin-amd64
