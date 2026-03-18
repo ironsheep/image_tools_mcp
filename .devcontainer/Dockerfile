@@ -1,5 +1,5 @@
 # Dev container for Image MCP development
-FROM mcr.microsoft.com/devcontainers/go:1.22-bookworm
+FROM mcr.microsoft.com/devcontainers/go:1.23-bookworm
 
 # Install Tesseract OCR and development dependencies
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \

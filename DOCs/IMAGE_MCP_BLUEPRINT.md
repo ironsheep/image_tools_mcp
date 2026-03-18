@@ -754,7 +754,7 @@ image-mcp/
 ```go
 module github.com/yourusername/image-mcp
 
-go 1.22
+go 1.23
 
 require (
     github.com/disintegration/imaging v1.6.2
@@ -1069,7 +1069,7 @@ func DominantColors(img image.Image, count int, region *image.Rectangle) ([]Colo
 
 ```dockerfile
 # Build stage
-FROM golang:1.22-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 RUN apk add --no-cache git gcc musl-dev
 
