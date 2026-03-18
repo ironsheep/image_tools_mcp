@@ -134,7 +134,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Technical Details
 
-- Built with Go 1.22+
+- Built with Go 1.23+
 - MCP protocol version 2024-11-05
 - JSON-RPC 2.0 over stdio
 

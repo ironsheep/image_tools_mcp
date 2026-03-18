@@ -8,7 +8,7 @@ This is an MCP (Model Context Protocol) server that provides image analysis tool
 
 ## Tech Stack
 
-- **Language**: Go 1.22+
+- **Language**: Go 1.23+
 - **OCR**: Tesseract via gosseract/v2
 - **Image Processing**: disintegration/imaging, anthonynsimon/bild
 - **Color Utilities**: lucasb-eyer/go-colorful
