@@ -186,8 +186,63 @@ func TestHandleRequest_Initialize(t *testing.T) {
 		t.Fatal("Result should be a map")
 	}
 
-	if result["protocolVersion"] != "2024-11-05" {
-		t.Errorf("protocolVersion: got %v", result["protocolVersion"])
+	// With no params, server defaults to its highest supported protocol version.
+	if result["protocolVersion"] != serverMaxProtocolVersion {
+		t.Errorf("protocolVersion: got %v, want %s", result["protocolVersion"], serverMaxProtocolVersion)
+	}
+
+	// Initialize result MUST contain only the spec-allowed top-level keys.
+	allowed := map[string]bool{
+		"protocolVersion": true,
+		"capabilities":    true,
+		"serverInfo":      true,
+		"instructions":    true,
+		"_meta":           true,
+	}
+	for k := range result {
+		if !allowed[k] {
+			t.Errorf("non-spec key in initialize result: %q", k)
+		}
+	}
+}
+
+func TestHandleInitialize_NegotiatesClientVersion(t *testing.T) {
+	s := New()
+	tests := []struct {
+		name           string
+		clientVersion  string
+		wantNegotiated string
+	}{
+		{"client requests 2024-11-05", "2024-11-05", "2024-11-05"},
+		{"client requests 2025-03-26", "2025-03-26", "2025-03-26"},
+		{"client requests 2025-06-18", "2025-06-18", "2025-06-18"},
+		{"client requests unknown future version falls back to server max", "2099-01-01", serverMaxProtocolVersion},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params, _ := json.Marshal(map[string]interface{}{"protocolVersion": tt.clientVersion})
+			req := &MCPRequest{JSONRPC: "2.0", ID: 1, Method: "initialize", Params: params}
+			resp := s.handleInitialize(req)
+			result := resp.Result.(map[string]interface{})
+			if result["protocolVersion"] != tt.wantNegotiated {
+				t.Errorf("protocolVersion: got %v, want %s", result["protocolVersion"], tt.wantNegotiated)
+			}
+		})
+	}
+}
+
+func TestHandleRequest_NotificationWithUnknownMethod(t *testing.T) {
+	// Per JSON-RPC 2.0, notifications (id == nil) MUST NOT receive a response,
+	// even when the method is unknown. Strict clients drop the connection on
+	// stray {"id":null} responses.
+	s := New()
+	req := &MCPRequest{
+		JSONRPC: "2.0",
+		Method:  "notifications/cancelled",
+	}
+
+	if resp := s.handleRequest(req); resp != nil {
+		t.Errorf("notification with unknown method must return nil, got %+v", resp)
 	}
 }
 
@@ -315,8 +370,8 @@ func TestHandleInitialize(t *testing.T) {
 	if serverInfo["name"] != "image-tools-mcp" {
 		t.Errorf("serverInfo.name: got %v", serverInfo["name"])
 	}
-	if serverInfo["version"] != "0.1.0" {
-		t.Errorf("serverInfo.version: got %v", serverInfo["version"])
+	if serverInfo["version"] != Version {
+		t.Errorf("serverInfo.version: got %v, want %s (package Version var)", serverInfo["version"], Version)
 	}
 }
 

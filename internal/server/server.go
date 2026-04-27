@@ -10,6 +10,21 @@ import (
 	"github.com/ironsheep/image-tools-mcp/internal/imaging"
 )
 
+// Version is the server version reported in initialize responses.
+// It is overridden from main via ldflags at build time.
+var Version = "dev"
+
+// Supported MCP protocol versions, in ascending order. The server negotiates
+// downward: it responds with the highest version it supports unless the client
+// explicitly asks for an older version that's also in this set.
+const serverMaxProtocolVersion = "2025-06-18"
+
+var supportedProtocolVersions = map[string]bool{
+	"2024-11-05": true,
+	"2025-03-26": true,
+	"2025-06-18": true,
+}
+
 // Server handles MCP protocol communication over stdio.
 //
 // The server maintains an image cache for efficient repeated access to images
@@ -123,14 +138,16 @@ func (s *Server) Run() error {
 
 // handleRequest routes JSON-RPC requests to the appropriate handler method.
 //
-// Returns nil for notifications that don't require a response.
+// Returns nil for notifications that don't require a response. Per JSON-RPC 2.0,
+// notifications (requests without an id) MUST NOT receive a response — even for
+// unknown methods.
 func (s *Server) handleRequest(req *MCPRequest) *MCPResponse {
+	if req.ID == nil {
+		return nil
+	}
 	switch req.Method {
 	case "initialize":
 		return s.handleInitialize(req)
-	case "notifications/initialized":
-		// Client acknowledgment, no response needed
-		return nil
 	case "tools/list":
 		return s.handleToolsList(req)
 	case "tools/call":
@@ -155,20 +172,34 @@ func (s *Server) handleRequest(req *MCPRequest) *MCPResponse {
 
 // handleInitialize responds to the MCP initialize request with server capabilities.
 //
-// This is the first request in the MCP handshake, establishing protocol version
-// and advertising available capabilities.
+// This is the first request in the MCP handshake. The server negotiates the
+// protocol version: it responds with its highest supported version unless the
+// client explicitly requested an older version that's also in the supported
+// set, in which case it echoes the client's version.
 func (s *Server) handleInitialize(req *MCPRequest) *MCPResponse {
+	negotiatedVersion := serverMaxProtocolVersion
+	var initParams struct {
+		ProtocolVersion string `json:"protocolVersion"`
+	}
+	if len(req.Params) > 0 {
+		if err := json.Unmarshal(req.Params, &initParams); err == nil {
+			if supportedProtocolVersions[initParams.ProtocolVersion] {
+				negotiatedVersion = initParams.ProtocolVersion
+			}
+		}
+	}
+
 	return &MCPResponse{
 		JSONRPC: "2.0",
 		ID:      req.ID,
 		Result: map[string]interface{}{
-			"protocolVersion": "2024-11-05",
+			"protocolVersion": negotiatedVersion,
 			"capabilities": map[string]interface{}{
 				"tools": map[string]interface{}{},
 			},
 			"serverInfo": map[string]interface{}{
 				"name":    "image-tools-mcp",
-				"version": "0.1.0",
+				"version": Version,
 			},
 		},
 	}

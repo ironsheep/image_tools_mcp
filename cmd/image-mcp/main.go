@@ -51,6 +51,7 @@ func main() {
 		log.Printf("Image MCP Server v%s (built %s, commit %s)", Version, BuildTime, GitCommit)
 	}
 
+	server.Version = Version
 	srv := server.New()
 	if err := srv.Run(); err != nil {
 		log.Fatalf("Server error: %v", err)
