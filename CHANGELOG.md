@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.3] - 2026-04-27
+
+### Added
+
+- **`image_count_colors` tool** - reports the number of discrete opaque colors in an image, capped at 10. Fully transparent pixels are ignored so a transparent background does not count. Returns per-color hex/RGB/percentage and a `truncated` flag if the image had more than the cap.
+- **`image_vectorize` tool** - converts a low-color raster icon (PNG with optional transparent background) to SVG by tracing each color layer separately. Pure-Go implementation via `github.com/dennwc/gotrace` — no `potrace` system dependency required. Output preserves transparency and returns both SVG text and a base64-encoded form. Tunable via `max_colors` (1-10), `quantize`, `turd_size`, and `alpha_max`.
+- **Auto-quantize selection** - when `quantize` is omitted from either tool, a fast pre-pass counts exact opaque colors. If the image already has ≤ 10 distinct colors (clean solid-color art), `quantize=1` is used so the SVG palette matches the source PNG exactly; otherwise it falls back to `quantize=8` to absorb anti-aliasing/noise. Effective value is reported as `quantize` and `quantize_auto: true` in the result.
+- **Auto-detected `max_colors` for vectorization** - omitting `max_colors` (or passing 0) routes the image through `image_count_colors` and uses that value, capped at 10.
+
+### Changed
+
+- Tool count grew from 18 to 20; `CLAUDE.md` updated to list the new "Color Counting & Vectorization" category.
+
+[1.2.3]: https://github.com/ironsheep/image_tools_mcp/releases/tag/v1.2.3
+
 ## [1.2.2] - 2026-04-27
 
 ### Fixed

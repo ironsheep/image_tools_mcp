@@ -46,7 +46,7 @@ image-tools-mcp/
 └── go.mod
 ```
 
-## MCP Tools (19 total)
+## MCP Tools (20 total)
 
 ### Basic Info
 - `image_load` - Load image and get metadata
@@ -75,6 +75,10 @@ image-tools-mcp/
 - `image_detect_lines` - Find line segments (with arrow detection)
 - `image_detect_circles` - Find circular shapes
 - `image_edge_detect` - Canny edge detection
+
+### Color Counting & Vectorization
+- `image_count_colors` - Count discrete colors (capped at 10), ignoring transparent pixels
+- `image_vectorize` - Convert low-color PNG icon to SVG by tracing each color layer (pure Go, no system deps)
 
 ### Analysis
 - `image_check_alignment` - Check if points are aligned

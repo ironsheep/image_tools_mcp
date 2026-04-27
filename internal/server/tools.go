@@ -414,6 +414,58 @@ func GetToolDefinitions() []Tool {
 			},
 		},
 
+		// Color Counting & Vectorization
+		{
+			Name:        "image_count_colors",
+			Description: "Count the number of discrete colors in an image (capped at 10). Ignores fully transparent pixels so a transparent background doesn't count. Use this before image_vectorize to choose an appropriate max_colors value. By default, quantize is auto-selected: if the image already has ≤10 exact opaque colors (clean solid-color art) it uses quantize=1 for an exact count; otherwise it falls back to quantize=8 to merge near-identical colors. The result reports `quantize` (effective value) and `quantize_auto` (true if auto-selected).",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"path": map[string]interface{}{
+						"type":        "string",
+						"description": "Absolute path to the image file",
+					},
+					"quantize": map[string]interface{}{
+						"type":        "integer",
+						"description": "Per-channel grouping size, 1-128. Smaller = more exact, larger = more aggressive merging of near-identical colors. Omit (or pass 0) to auto-select: 1 if the image has ≤10 exact opaque colors, else 8.",
+					},
+				},
+				"required": []string{"path"},
+			},
+		},
+		{
+			Name:        "image_vectorize",
+			Description: "Convert a low-color raster icon (PNG with optional transparent background) to SVG by tracing each color as a separate path. Best for 1-10 color icons; the output preserves transparency. Returns SVG text and base64-encoded form. By default, quantize is auto-selected: clean solid-color icons (≤10 exact colors) get quantize=1 so the SVG palette matches the source PNG exactly; busier images fall back to quantize=8 to absorb anti-aliasing. The result reports `quantize` and `quantize_auto`.",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"path": map[string]interface{}{
+						"type":        "string",
+						"description": "Absolute path to the image file",
+					},
+					"max_colors": map[string]interface{}{
+						"type":        "integer",
+						"description": "Number of colors in the output palette, 1-10. Omit or pass 0 to auto-detect via image_count_colors.",
+					},
+					"quantize": map[string]interface{}{
+						"type":        "integer",
+						"description": "Per-channel color grouping before palette selection, 1-128. Omit (or pass 0) to auto-select: 1 if the image has ≤10 exact opaque colors, else 8.",
+					},
+					"turd_size": map[string]interface{}{
+						"type":        "integer",
+						"description": "Suppress speckles smaller than this pixel area. Default 2.",
+						"default":     2,
+					},
+					"alpha_max": map[string]interface{}{
+						"type":        "number",
+						"description": "Corner-rounding parameter (potrace alphamax): 0=polygons, 1.0=smooth (default), 1.3334=max smoothing.",
+						"default":     1.0,
+					},
+				},
+				"required": []string{"path"},
+			},
+		},
+
 		// Analysis Helpers
 		{
 			Name:        "image_check_alignment",

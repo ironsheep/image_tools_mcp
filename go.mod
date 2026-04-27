@@ -8,3 +8,5 @@ require (
 )
 
 require golang.org/x/image v0.15.0
+
+require github.com/dennwc/gotrace v1.0.3 // indirect

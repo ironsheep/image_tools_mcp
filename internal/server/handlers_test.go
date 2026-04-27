@@ -984,6 +984,8 @@ func TestExecuteTool_AllTools(t *testing.T) {
 		{"image_detect_lines", map[string]interface{}{"path": imgPath}},
 		{"image_detect_circles", map[string]interface{}{"path": imgPath}},
 		{"image_edge_detect", map[string]interface{}{"path": imgPath}},
+		{"image_count_colors", map[string]interface{}{"path": imgPath}},
+		{"image_vectorize", map[string]interface{}{"path": imgPath}},
 		{"image_check_alignment", map[string]interface{}{"path": imgPath, "points": []map[string]interface{}{{"x": 10, "y": 50}, {"x": 50, "y": 50}}}},
 		{"image_compare_regions", map[string]interface{}{"path": imgPath, "region1": map[string]interface{}{"x1": 0, "y1": 0, "x2": 50, "y2": 50}, "region2": map[string]interface{}{"x1": 50, "y1": 50, "x2": 100, "y2": 100}}},
 	}

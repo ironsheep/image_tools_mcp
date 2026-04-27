@@ -29,6 +29,8 @@ func TestGetToolDefinitions(t *testing.T) {
 		"image_detect_lines",
 		"image_detect_circles",
 		"image_edge_detect",
+		"image_count_colors",
+		"image_vectorize",
 		"image_check_alignment",
 		"image_compare_regions",
 	}
@@ -106,6 +108,8 @@ func TestToolDefinitions_RequiredPath(t *testing.T) {
 		"image_detect_lines",
 		"image_detect_circles",
 		"image_edge_detect",
+		"image_count_colors",
+		"image_vectorize",
 		"image_check_alignment",
 		"image_compare_regions",
 	}
@@ -251,6 +255,7 @@ func TestToolDefinitions_OptionalDefaults(t *testing.T) {
 		"image_detect_lines":     {"min_length": 20, "detect_arrows": true},
 		"image_detect_circles":   {"min_radius": 5, "max_radius": 500},
 		"image_edge_detect":      {"threshold_low": 50, "threshold_high": 150},
+		"image_vectorize":        {"turd_size": 2, "alpha_max": 1.0},
 		"image_check_alignment":  {"tolerance": 5},
 	}
 
