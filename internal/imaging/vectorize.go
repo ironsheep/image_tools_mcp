@@ -13,16 +13,17 @@ import (
 
 // VectorizeResult holds the SVG produced by tracing a low-color raster image.
 type VectorizeResult struct {
-	Width        int      `json:"width"`
-	Height       int      `json:"height"`
-	ColorsUsed   int      `json:"colors_used"`
-	Palette      []string `json:"palette"`
-	SVG          string   `json:"svg"`
-	SVGBase64    string   `json:"svg_base64"`
-	MimeType     string   `json:"mime_type"`
-	AutoDetected bool     `json:"auto_detected,omitempty"`
-	Quantize     int      `json:"quantize"`
-	QuantizeAuto bool     `json:"quantize_auto,omitempty"`
+	Width          int      `json:"width"`
+	Height         int      `json:"height"`
+	ColorsUsed     int      `json:"colors_used"`
+	Palette        []string `json:"palette"`
+	SVG            string   `json:"svg"`
+	SVGBase64      string   `json:"svg_base64"`
+	MimeType       string   `json:"mime_type"`
+	AutoDetected   bool     `json:"auto_detected,omitempty"`
+	Quantize       int      `json:"quantize"`
+	QuantizeAuto   bool     `json:"quantize_auto,omitempty"`
+	AlphaThreshold int      `json:"alpha_threshold"`
 }
 
 // VectorizeOptions tunes the raster-to-vector conversion.
@@ -31,12 +32,17 @@ type VectorizeResult struct {
 // (clamped to MaxDiscreteColors). Quantize controls how aggressively similar source
 // colors are merged before palette selection. TurdSize suppresses speckles smaller than
 // the given pixel area; AlphaMax is potrace's corner-rounding parameter (0 = polygons,
-// 1.0 = smooth, 1.3334 = max smoothing).
+// 1.0 = smooth, 1.3334 = max smoothing). AlphaThreshold is the minimum alpha (0-255)
+// for a pixel to be considered part of the icon — pixels below this are treated as
+// transparent background. Pass 0 for DefaultAlphaThreshold (128); without this, the
+// near-white RGB stored under anti-aliased fringe pixels leaks into the palette and
+// can dominate the trace.
 type VectorizeOptions struct {
-	MaxColors int
-	Quantize  int
-	TurdSize  int
-	AlphaMax  float64
+	MaxColors      int
+	Quantize       int
+	TurdSize       int
+	AlphaMax       float64
+	AlphaThreshold int
 }
 
 // Vectorize converts a low-color raster image (with optional transparent background)
@@ -53,9 +59,19 @@ func Vectorize(img image.Image, opts VectorizeOptions) (*VectorizeResult, error)
 	bounds := img.Bounds()
 	w, h := bounds.Dx(), bounds.Dy()
 
+	if opts.AlphaThreshold == 0 {
+		opts.AlphaThreshold = DefaultAlphaThreshold
+	}
+	if opts.AlphaThreshold < 0 {
+		opts.AlphaThreshold = 0
+	}
+	if opts.AlphaThreshold > 255 {
+		opts.AlphaThreshold = 255
+	}
+
 	quantizeAuto := false
 	if opts.Quantize <= 0 {
-		opts.Quantize = ChooseQuantize(img)
+		opts.Quantize = ChooseQuantize(img, opts.AlphaThreshold)
 		quantizeAuto = true
 	}
 	if opts.TurdSize <= 0 {
@@ -67,7 +83,7 @@ func Vectorize(img image.Image, opts VectorizeOptions) (*VectorizeResult, error)
 
 	autoDetected := false
 	if opts.MaxColors <= 0 {
-		count, err := CountColors(img, opts.Quantize)
+		count, err := CountColors(img, opts.Quantize, opts.AlphaThreshold)
 		if err != nil {
 			return nil, err
 		}
@@ -81,7 +97,7 @@ func Vectorize(img image.Image, opts VectorizeOptions) (*VectorizeResult, error)
 		opts.MaxColors = MaxDiscreteColors
 	}
 
-	palette, assignment, err := buildPalette(img, opts.MaxColors, opts.Quantize)
+	palette, assignment, err := buildPalette(img, opts.MaxColors, opts.Quantize, opts.AlphaThreshold)
 	if err != nil {
 		return nil, err
 	}
@@ -125,36 +141,37 @@ func Vectorize(img image.Image, opts VectorizeOptions) (*VectorizeResult, error)
 
 	svgStr := svg.String()
 	return &VectorizeResult{
-		Width:        w,
-		Height:       h,
-		ColorsUsed:   len(palette),
-		Palette:      hexPalette,
-		SVG:          svgStr,
-		SVGBase64:    base64.StdEncoding.EncodeToString([]byte(svgStr)),
-		MimeType:     "image/svg+xml",
-		AutoDetected: autoDetected,
-		Quantize:     opts.Quantize,
-		QuantizeAuto: quantizeAuto,
+		Width:          w,
+		Height:         h,
+		ColorsUsed:     len(palette),
+		Palette:        hexPalette,
+		SVG:            svgStr,
+		SVGBase64:      base64.StdEncoding.EncodeToString([]byte(svgStr)),
+		MimeType:       "image/svg+xml",
+		AutoDetected:   autoDetected,
+		Quantize:       opts.Quantize,
+		QuantizeAuto:   quantizeAuto,
+		AlphaThreshold: opts.AlphaThreshold,
 	}, nil
 }
 
 // buildPalette picks up to maxColors representative colors and returns, for each pixel,
-// the index of the closest palette entry — or -1 if the pixel is transparent and should
-// be skipped by every layer.
-func buildPalette(img image.Image, maxColors, quantize int) ([]RGBColor, []int, error) {
+// the index of the closest palette entry — or -1 if the pixel is below alphaThreshold
+// and should be skipped by every layer.
+func buildPalette(img image.Image, maxColors, quantize, alphaThreshold int) ([]RGBColor, []int, error) {
 	bounds := img.Bounds()
 	w, h := bounds.Dx(), bounds.Dy()
 
 	type bucket struct {
-		key   uint32
-		count int
+		key     uint32
+		count   int
 		r, g, b uint8
 	}
 	bucketMap := make(map[uint32]*bucket)
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
 			r, g, b, a := img.At(x, y).RGBA()
-			if a == 0 {
+			if int(a>>8) < alphaThreshold {
 				continue
 			}
 			r8 := uint8((r >> 8) / uint32(quantize) * uint32(quantize))
@@ -180,7 +197,7 @@ func buildPalette(img image.Image, maxColors, quantize int) ([]RGBColor, []int, 
 		buckets = buckets[:maxColors]
 	}
 	if len(buckets) == 0 {
-		return nil, nil, fmt.Errorf("image has no opaque pixels")
+		return nil, nil, fmt.Errorf("image has no pixels with alpha >= %d", alphaThreshold)
 	}
 
 	palette := make([]RGBColor, len(buckets))
@@ -195,7 +212,7 @@ func buildPalette(img image.Image, maxColors, quantize int) ([]RGBColor, []int, 
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
 			r, g, b, a := img.At(x, y).RGBA()
-			if a == 0 {
+			if int(a>>8) < alphaThreshold {
 				continue
 			}
 			assignment[(y-bounds.Min.Y)*w+(x-bounds.Min.X)] = nearestColor(uint8(r>>8), uint8(g>>8), uint8(b>>8), palette)

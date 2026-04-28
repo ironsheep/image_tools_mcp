@@ -38,7 +38,7 @@ func TestCountColors_IgnoresTransparentBackground(t *testing.T) {
 		{R: 0, G: 255, B: 0, A: 255},
 	})
 
-	res, err := CountColors(img, 8)
+	res, err := CountColors(img, 8, 1)
 	if err != nil {
 		t.Fatalf("CountColors error: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestCountColors_CapsAtMax(t *testing.T) {
 	}
 	img := makeIconImage(60, 20, colors)
 
-	res, err := CountColors(img, 1) // quantize=1 to keep colors distinct
+	res, err := CountColors(img, 1, 1) // quantize=1 + alpha-threshold=1 to keep colors distinct
 	if err != nil {
 		t.Fatalf("CountColors error: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestChooseQuantize_FewExactColors(t *testing.T) {
 		{G: 255, A: 255},
 		{B: 255, A: 255},
 	})
-	if q := ChooseQuantize(img); q != 1 {
+	if q := ChooseQuantize(img, 128); q != 1 {
 		t.Errorf("expected quantize=1 for clean 3-color icon, got %d", q)
 	}
 }
@@ -143,7 +143,7 @@ func TestChooseQuantize_ManyExactColors(t *testing.T) {
 		colors[i] = color.NRGBA{R: uint8(i * 20), G: uint8(255 - i*15), B: uint8(i * 10), A: 255}
 	}
 	img := makeIconImage(60, 20, colors)
-	if q := ChooseQuantize(img); q != DefaultQuantizeFallback {
+	if q := ChooseQuantize(img, 1); q != DefaultQuantizeFallback {
 		t.Errorf("expected fallback quantize=%d, got %d", DefaultQuantizeFallback, q)
 	}
 }
@@ -185,6 +185,87 @@ func TestVectorize_ExplicitQuantizeRespected(t *testing.T) {
 	}
 	if res.Quantize != 16 {
 		t.Errorf("expected Quantize=16, got %d", res.Quantize)
+	}
+}
+
+// makeAntiAliasedIcon mimics a typical PNG icon: a small solid-color core
+// surrounded by a 1-pixel ring of low-alpha near-white pixels (the anti-aliased
+// fringe), all on a fully transparent background.
+func makeAntiAliasedIcon() *image.NRGBA {
+	w, h := 20, 20
+	img := image.NewNRGBA(image.Rect(0, 0, w, h))
+	core := color.NRGBA{R: 0xE0, G: 0xB8, B: 0x60, A: 255} // gold
+	// Anti-aliased fringe: near-white RGB with low alpha (the fringe pixels store
+	// the *background-blended* color in unmultiplied PNG, which is what trips up
+	// naive palette analysis).
+	fringe := color.NRGBA{R: 0xF8, G: 0xF8, B: 0xF8, A: 80}
+
+	for y := 1; y < h-1; y++ {
+		for x := 1; x < w-1; x++ {
+			isEdge := x == 1 || x == w-2 || y == 1 || y == h-2
+			if isEdge {
+				img.SetNRGBA(x, y, fringe)
+			} else {
+				img.SetNRGBA(x, y, core)
+			}
+		}
+	}
+	return img
+}
+
+func TestCountColors_AlphaThresholdExcludesFringe(t *testing.T) {
+	img := makeAntiAliasedIcon()
+
+	// Default alpha_threshold=128 should drop the alpha=80 fringe entirely.
+	res, err := CountColors(img, 1, 0) // 0 → DefaultAlphaThreshold (128)
+	if err != nil {
+		t.Fatalf("CountColors error: %v", err)
+	}
+	if res.AlphaThreshold != DefaultAlphaThreshold {
+		t.Errorf("expected AlphaThreshold=%d, got %d", DefaultAlphaThreshold, res.AlphaThreshold)
+	}
+	if res.DistinctCount != 1 {
+		t.Errorf("expected 1 color (gold core only), got %d: %v", res.DistinctCount, res.Colors)
+	}
+	if len(res.Colors) > 0 && res.Colors[0].Hex != "#E0B860" {
+		t.Errorf("expected gold #E0B860 to dominate, got %s", res.Colors[0].Hex)
+	}
+
+	// With legacy alpha_threshold=1 the fringe leaks in and outvotes the core.
+	resLegacy, err := CountColors(img, 1, 1)
+	if err != nil {
+		t.Fatalf("CountColors error: %v", err)
+	}
+	if resLegacy.DistinctCount != 2 {
+		t.Errorf("legacy: expected 2 colors (core + fringe), got %d: %v", resLegacy.DistinctCount, resLegacy.Colors)
+	}
+}
+
+func TestVectorize_AlphaThresholdSuppressesFringe(t *testing.T) {
+	img := makeAntiAliasedIcon()
+
+	// Default behavior: fringe excluded, palette is just the gold core.
+	res, err := Vectorize(img, VectorizeOptions{})
+	if err != nil {
+		t.Fatalf("Vectorize error: %v", err)
+	}
+	if res.AlphaThreshold != DefaultAlphaThreshold {
+		t.Errorf("expected AlphaThreshold=%d, got %d", DefaultAlphaThreshold, res.AlphaThreshold)
+	}
+	if res.ColorsUsed != 1 {
+		t.Errorf("expected 1 color in palette, got %d: %v", res.ColorsUsed, res.Palette)
+	}
+	if len(res.Palette) > 0 && res.Palette[0] != "#E0B860" {
+		t.Errorf("expected gold #E0B860, got %s", res.Palette[0])
+	}
+
+	// Explicit max_colors=2 should still only find 1 (the fringe is invisible at default threshold).
+	res2, err := Vectorize(img, VectorizeOptions{MaxColors: 2})
+	if err != nil {
+		t.Fatalf("Vectorize error: %v", err)
+	}
+	if res2.ColorsUsed != 1 {
+		t.Errorf("max_colors=2 should still yield 1: got %d (%v)", res2.ColorsUsed, res2.Palette)
 	}
 }
 

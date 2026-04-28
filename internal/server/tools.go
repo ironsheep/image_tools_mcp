@@ -417,7 +417,7 @@ func GetToolDefinitions() []Tool {
 		// Color Counting & Vectorization
 		{
 			Name:        "image_count_colors",
-			Description: "Count the number of discrete colors in an image (capped at 10). Ignores fully transparent pixels so a transparent background doesn't count. Use this before image_vectorize to choose an appropriate max_colors value. By default, quantize is auto-selected: if the image already has ≤10 exact opaque colors (clean solid-color art) it uses quantize=1 for an exact count; otherwise it falls back to quantize=8 to merge near-identical colors. The result reports `quantize` (effective value) and `quantize_auto` (true if auto-selected).",
+			Description: "Count the number of discrete colors in an image (capped at 10). Ignores pixels with alpha < alpha_threshold (default 128) so anti-aliased edge fringe doesn't leak its near-white RGB into the palette and a transparent background doesn't count. Use this before image_vectorize to choose an appropriate max_colors value. By default, quantize is auto-selected: if the image already has ≤10 exact opaque colors (clean solid-color art) it uses quantize=1 for an exact count; otherwise it falls back to quantize=8 to merge near-identical colors. The result reports `quantize` (effective value), `quantize_auto`, and `alpha_threshold`.",
 			InputSchema: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -429,13 +429,18 @@ func GetToolDefinitions() []Tool {
 						"type":        "integer",
 						"description": "Per-channel grouping size, 1-128. Smaller = more exact, larger = more aggressive merging of near-identical colors. Omit (or pass 0) to auto-select: 1 if the image has ≤10 exact opaque colors, else 8.",
 					},
+					"alpha_threshold": map[string]interface{}{
+						"type":        "integer",
+						"description": "Minimum alpha (0-255) for a pixel to count as part of the icon. Default 128. Use 1 to keep legacy behavior (only fully-transparent pixels excluded) — but be warned that anti-aliased fringe will then dominate the palette of typical PNG icons.",
+						"default":     128,
+					},
 				},
 				"required": []string{"path"},
 			},
 		},
 		{
 			Name:        "image_vectorize",
-			Description: "Convert a low-color raster icon (PNG with optional transparent background) to SVG by tracing each color as a separate path. Best for 1-10 color icons; the output preserves transparency. Returns SVG text and base64-encoded form. By default, quantize is auto-selected: clean solid-color icons (≤10 exact colors) get quantize=1 so the SVG palette matches the source PNG exactly; busier images fall back to quantize=8 to absorb anti-aliasing. The result reports `quantize` and `quantize_auto`.",
+			Description: "Convert a low-color raster icon (PNG with optional transparent background) to SVG by tracing each color as a separate path. Best for 1-10 color icons; the output preserves transparency. Returns SVG text and base64-encoded form. Pixels with alpha < alpha_threshold (default 128) are treated as transparent — this is critical for PNGs whose anti-aliased edges store near-white RGB under low alpha, which would otherwise dominate the palette and balloon SVG size. By default, quantize is auto-selected: clean solid-color icons (≤10 exact colors) get quantize=1 so the SVG palette matches the source PNG exactly; busier images fall back to quantize=8 to absorb anti-aliasing. Result reports `quantize`, `quantize_auto`, and `alpha_threshold`.",
 			InputSchema: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -450,6 +455,11 @@ func GetToolDefinitions() []Tool {
 					"quantize": map[string]interface{}{
 						"type":        "integer",
 						"description": "Per-channel color grouping before palette selection, 1-128. Omit (or pass 0) to auto-select: 1 if the image has ≤10 exact opaque colors, else 8.",
+					},
+					"alpha_threshold": map[string]interface{}{
+						"type":        "integer",
+						"description": "Minimum alpha (0-255) for a pixel to be traced. Default 128. Lower values include more of the anti-aliased fringe (often producing a 'frosting' halo of near-white paths around the icon and bloating the SVG); higher values keep only the solid core. Use 1 to keep all non-zero-alpha pixels (legacy behavior).",
+						"default":     128,
 					},
 					"turd_size": map[string]interface{}{
 						"type":        "integer",

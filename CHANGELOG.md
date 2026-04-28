@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.4] - 2026-04-28
+
+### Fixed
+
+- **Anti-aliased fringe leaked into palette analysis** in `image_count_colors` and `image_vectorize`. Previously only fully-transparent pixels (alpha == 0) were excluded, so PNGs whose anti-aliased edges store near-white RGB under low alpha — including most ChatGPT-generated logos — had those fringe pixels dominate the color palette. Symptoms: a 2-color gold-on-transparent logo would report 4+ "colors" and trace into a 600+ KB SVG with a whitish "frosting" halo, or with `max_colors=2` the actual logo color would be dropped entirely in favor of the fringe.
+
+### Added
+
+- **`alpha_threshold` parameter** on both `image_count_colors` and `image_vectorize` (default 128). Pixels with alpha below this are treated as transparent background and excluded from palette analysis, color counting, and tracing. The default sits at the perceptual midpoint and reliably suppresses anti-aliased fringe on typical PNG icons. Pass `1` to restore legacy behavior (only alpha==0 excluded); pass `255` to require full opacity. Effective value is reported in the result as `alpha_threshold`.
+
+[1.2.4]: https://github.com/ironsheep/image_tools_mcp/releases/tag/v1.2.4
+
 ## [1.2.3] - 2026-04-27
 
 ### Added

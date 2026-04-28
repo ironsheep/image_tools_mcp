@@ -492,8 +492,9 @@ func (s *Server) handleImageEdgeDetect(args json.RawMessage) (interface{}, error
 // === Color Counting & Vectorization Handlers ===
 
 type imageCountColorsArgs struct {
-	Path     string `json:"path"`
-	Quantize int    `json:"quantize"`
+	Path           string `json:"path"`
+	Quantize       int    `json:"quantize"`
+	AlphaThreshold int    `json:"alpha_threshold"`
 }
 
 func (s *Server) handleImageCountColors(args json.RawMessage) (interface{}, error) {
@@ -505,15 +506,16 @@ func (s *Server) handleImageCountColors(args json.RawMessage) (interface{}, erro
 	if err != nil {
 		return nil, err
 	}
-	return imaging.CountColors(img, a.Quantize)
+	return imaging.CountColors(img, a.Quantize, a.AlphaThreshold)
 }
 
 type imageVectorizeArgs struct {
-	Path      string  `json:"path"`
-	MaxColors int     `json:"max_colors"`
-	Quantize  int     `json:"quantize"`
-	TurdSize  int     `json:"turd_size"`
-	AlphaMax  float64 `json:"alpha_max"`
+	Path           string  `json:"path"`
+	MaxColors      int     `json:"max_colors"`
+	Quantize       int     `json:"quantize"`
+	TurdSize       int     `json:"turd_size"`
+	AlphaMax       float64 `json:"alpha_max"`
+	AlphaThreshold int     `json:"alpha_threshold"`
 }
 
 func (s *Server) handleImageVectorize(args json.RawMessage) (interface{}, error) {
@@ -526,10 +528,11 @@ func (s *Server) handleImageVectorize(args json.RawMessage) (interface{}, error)
 		return nil, err
 	}
 	return imaging.Vectorize(img, imaging.VectorizeOptions{
-		MaxColors: a.MaxColors,
-		Quantize:  a.Quantize,
-		TurdSize:  a.TurdSize,
-		AlphaMax:  a.AlphaMax,
+		MaxColors:      a.MaxColors,
+		Quantize:       a.Quantize,
+		TurdSize:       a.TurdSize,
+		AlphaMax:       a.AlphaMax,
+		AlphaThreshold: a.AlphaThreshold,
 	})
 }
 
