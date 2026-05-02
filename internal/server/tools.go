@@ -476,6 +476,67 @@ func GetToolDefinitions() []Tool {
 			},
 		},
 
+		{
+			Name:        "image_unbake_transparency",
+			Description: "Reconstruct a transparent-background PNG from an image whose original transparency was flattened onto a 'fake transparency' checkerboard background (e.g. a screenshot of a web preview). Detects the checker pattern (period, colors, origin), identifies the foreground icon colors, then reverses the alpha-compositing equation per pixel to recover the lost alpha channel. The output PNG is suitable for direct use with image_vectorize. Writes the reconstructed PNG to output_path (defaults to <input>_unbaked.png next to the source) AND returns a base64 preview. Most parameters are auto-detected; manual overrides are available for edge cases.",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"path": map[string]interface{}{
+						"type":        "string",
+						"description": "Absolute path to the input image",
+					},
+					"output_path": map[string]interface{}{
+						"type":        "string",
+						"description": "Where to write the reconstructed PNG. Default: <input>_unbaked.png next to the source.",
+					},
+					"foreground_colors": map[string]interface{}{
+						"type":        "array",
+						"items":       map[string]interface{}{"type": "string"},
+						"description": "Optional list of foreground colors as hex (e.g. ['#E4B763','#A87828']). Omit to auto-detect.",
+					},
+					"checker": map[string]interface{}{
+						"type":        "object",
+						"description": "Optional manual checker spec to skip auto-detection. All fields required if provided.",
+						"properties": map[string]interface{}{
+							"color1":       map[string]interface{}{"type": "string", "description": "Light cell color hex"},
+							"color2":       map[string]interface{}{"type": "string", "description": "Dark cell color hex"},
+							"period":       map[string]interface{}{"type": "integer", "description": "Pixels per cell side"},
+							"origin_x":     map[string]interface{}{"type": "integer", "description": "x at which cell (0,0) starts (usually 0)"},
+							"origin_y":     map[string]interface{}{"type": "integer", "description": "y at which cell (0,0) starts (usually 0)"},
+							"light_parity": map[string]interface{}{"type": "integer", "description": "0 if cell (0,0) is the light color, 1 if dark"},
+						},
+					},
+					"bg_tolerance": map[string]interface{}{
+						"type":        "integer",
+						"description": "Max RGB distance from a checker color to count as background. Wider catches JPEG halo. Default 28.",
+						"default":     28,
+					},
+					"fg_tolerance": map[string]interface{}{
+						"type":        "integer",
+						"description": "Max RGB distance from a foreground color to count as solid foreground. Default 32.",
+						"default":     32,
+					},
+					"edge_blend_tolerance": map[string]interface{}{
+						"type":        "number",
+						"description": "Max perpendicular RGB distance from the FG→BG line for a pixel to count as an edge blend. Default 12.",
+						"default":     12.0,
+					},
+					"anti_fringe_radius": map[string]interface{}{
+						"type":        "integer",
+						"description": "Pixels of α=0 ring extension around the icon to absorb leftover halo. Default 1; pass -1 to disable.",
+						"default":     1,
+					},
+					"max_preview_dim": map[string]interface{}{
+						"type":        "integer",
+						"description": "Longest side (px) of the embedded base64 preview. Default 512.",
+						"default":     512,
+					},
+				},
+				"required": []string{"path"},
+			},
+		},
+
 		// Analysis Helpers
 		{
 			Name:        "image_check_alignment",

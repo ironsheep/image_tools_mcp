@@ -46,7 +46,7 @@ image-tools-mcp/
 └── go.mod
 ```
 
-## MCP Tools (20 total)
+## MCP Tools (21 total)
 
 ### Basic Info
 - `image_load` - Load image and get metadata
@@ -79,6 +79,7 @@ image-tools-mcp/
 ### Color Counting & Vectorization
 - `image_count_colors` - Count discrete colors (capped at 10), ignoring transparent pixels
 - `image_vectorize` - Convert low-color PNG icon to SVG by tracing each color layer (pure Go, no system deps)
+- `image_unbake_transparency` - Reconstruct a transparent-background PNG from one with a baked-in fake-transparency checker pattern. Output flows directly into image_vectorize.
 
 ### Analysis
 - `image_check_alignment` - Check if points are aligned

@@ -111,6 +111,8 @@ func (s *Server) executeTool(name string, args json.RawMessage) (interface{}, er
 		return s.handleImageCountColors(args)
 	case "image_vectorize":
 		return s.handleImageVectorize(args)
+	case "image_unbake_transparency":
+		return s.handleImageUnbakeTransparency(args)
 
 	// Analysis Helpers
 	case "image_check_alignment":
@@ -534,6 +536,99 @@ func (s *Server) handleImageVectorize(args json.RawMessage) (interface{}, error)
 		AlphaMax:       a.AlphaMax,
 		AlphaThreshold: a.AlphaThreshold,
 	})
+}
+
+type imageUnbakeTransparencyArgs struct {
+	Path               string   `json:"path"`
+	OutputPath         string   `json:"output_path"`
+	ForegroundColors   []string `json:"foreground_colors"`
+	BgTolerance        int      `json:"bg_tolerance"`
+	FgTolerance        int      `json:"fg_tolerance"`
+	EdgeBlendTolerance float64  `json:"edge_blend_tolerance"`
+	AntiFringeRadius   int      `json:"anti_fringe_radius"`
+	MaxPreviewDim      int      `json:"max_preview_dim"`
+	Checker            *struct {
+		Color1Hex   string `json:"color1"`
+		Color2Hex   string `json:"color2"`
+		Period      int    `json:"period"`
+		OriginX     int    `json:"origin_x"`
+		OriginY     int    `json:"origin_y"`
+		LightParity int    `json:"light_parity"`
+	} `json:"checker,omitempty"`
+}
+
+func (s *Server) handleImageUnbakeTransparency(args json.RawMessage) (interface{}, error) {
+	var a imageUnbakeTransparencyArgs
+	if err := json.Unmarshal(args, &a); err != nil {
+		return nil, err
+	}
+	img, err := s.cache.Load(a.Path)
+	if err != nil {
+		return nil, err
+	}
+	outPath := a.OutputPath
+	if outPath == "" {
+		// Default: <input>_unbaked.png next to source
+		base := a.Path
+		ext := ""
+		for i := len(base) - 1; i >= 0; i-- {
+			if base[i] == '.' {
+				ext = base[i:]
+				base = base[:i]
+				break
+			}
+			if base[i] == '/' || base[i] == '\\' {
+				break
+			}
+		}
+		if ext == "" {
+			ext = ".png"
+		}
+		outPath = base + "_unbaked" + ext
+	}
+	opts := imaging.UnbakeOptions{
+		ForegroundColors:   a.ForegroundColors,
+		BgTolerance:        a.BgTolerance,
+		FgTolerance:        a.FgTolerance,
+		EdgeBlendTolerance: a.EdgeBlendTolerance,
+		AntiFringeRadius:   a.AntiFringeRadius,
+		MaxPreviewDim:      a.MaxPreviewDim,
+	}
+	if a.Checker != nil {
+		c1, err := parseHexLocal(a.Checker.Color1Hex)
+		if err != nil {
+			return nil, fmt.Errorf("bad checker.color1: %w", err)
+		}
+		c2, err := parseHexLocal(a.Checker.Color2Hex)
+		if err != nil {
+			return nil, fmt.Errorf("bad checker.color2: %w", err)
+		}
+		opts.Checker = &imaging.CheckerInfo{
+			Color1:      c1,
+			Color2:      c2,
+			Period:      a.Checker.Period,
+			OriginX:     a.Checker.OriginX,
+			OriginY:     a.Checker.OriginY,
+			LightParity: a.Checker.LightParity,
+		}
+	}
+	return imaging.UnbakeTransparency(img, outPath, opts)
+}
+
+func parseHexLocal(s string) (imaging.RGBColor, error) {
+	if len(s) > 0 && s[0] == '#' {
+		s = s[1:]
+	}
+	if len(s) != 6 {
+		return imaging.RGBColor{}, fmt.Errorf("expected #RRGGBB, got %q", s)
+	}
+	var r, g, b uint8
+	if _, err := fmt.Sscanf(s, "%02x%02x%02x", &r, &g, &b); err != nil {
+		if _, err := fmt.Sscanf(s, "%02X%02X%02X", &r, &g, &b); err != nil {
+			return imaging.RGBColor{}, err
+		}
+	}
+	return imaging.RGBColor{R: r, G: g, B: b}, nil
 }
 
 // === Analysis Helper Handlers ===

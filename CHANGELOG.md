@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.5] - 2026-05-02
+
+### Added
+
+- **`image_unbake_transparency` tool** — reconstructs a properly-transparent PNG from an image whose original transparency was flattened onto a "fake transparency" checkerboard background (e.g., screenshots of web preview panes, exported icons saved against a checker, etc.). Pipeline:
+  1. **Auto-detect the checker** via a square-wave matched filter on luminance strips. Robust to JPEG block-correlation noise that breaks naive autocorrelation. Reports period, both cell colors, origin, and confidence.
+  2. **Identify foreground icon colors** by histogramming pixels far from the checker palette, then single-link clustering (RGB distance < 36) to merge JPEG-bridge-noise variants of the same color.
+  3. **Per-pixel classification** into pure-background, pure-foreground, edge-blend, or ambiguous — using a tolerant background test that absorbs JPEG halo (pixels near checker colors but not exact).
+  4. **Recover lost alpha** for edge-blend pixels by inverting the alpha-compositing equation: `α = ‖p − bg(x,y)‖ / ‖fg − bg(x,y)‖`. Snaps to fully opaque/transparent at the extremes for crisp tracing.
+  5. **Edge enhancements**: 3×3 majority filter to close JPEG-noise pinholes inside the icon body; anti-fringe extension to absorb leftover halo.
+  6. Writes the reconstructed PNG to `output_path` (defaults to `<input>_unbaked.png` next to the source) **and** returns a base64 preview for inspection.
+- All checker parameters and foreground colors can be supplied manually for cases where auto-detection fails or when the user wants explicit control.
+- Output PNG flows directly into `image_vectorize` — no special handling needed downstream.
+
+### Why this matters
+
+PNG icons captured from web previews or LLM outputs frequently come with a baked-in checker pattern instead of real transparency. Without unbaking: `image_vectorize` traces the checker squares as foreground, the palette is dominated by the checker grays, and edge anti-aliasing pixels (which now blend gold-with-checker rather than gold-with-transparent) produce scalloped edges and inflated SVG sizes. Unbaking lifts the icon back onto a true transparent background; the trace pipeline then works as if the image had been exported correctly in the first place.
+
+[1.2.5]: https://github.com/ironsheep/image_tools_mcp/releases/tag/v1.2.5
+
 ## [1.2.4] - 2026-04-28
 
 ### Fixed

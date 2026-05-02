@@ -31,6 +31,7 @@ func TestGetToolDefinitions(t *testing.T) {
 		"image_edge_detect",
 		"image_count_colors",
 		"image_vectorize",
+		"image_unbake_transparency",
 		"image_check_alignment",
 		"image_compare_regions",
 	}
@@ -110,6 +111,7 @@ func TestToolDefinitions_RequiredPath(t *testing.T) {
 		"image_edge_detect",
 		"image_count_colors",
 		"image_vectorize",
+		"image_unbake_transparency",
 		"image_check_alignment",
 		"image_compare_regions",
 	}
