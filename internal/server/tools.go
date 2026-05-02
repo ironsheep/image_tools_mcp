@@ -478,7 +478,7 @@ func GetToolDefinitions() []Tool {
 
 		{
 			Name:        "image_unbake_transparency",
-			Description: "Reconstruct a transparent-background PNG from an image whose original transparency was flattened onto a 'fake transparency' checkerboard background (e.g. a screenshot of a web preview). Detects the checker pattern (period, colors, origin), identifies the foreground icon colors, then reverses the alpha-compositing equation per pixel to recover the lost alpha channel. The output PNG is suitable for direct use with image_vectorize. Writes the reconstructed PNG to output_path (defaults to <input>_unbaked.png next to the source) AND returns a base64 preview. Most parameters are auto-detected; manual overrides are available for edge cases.",
+			Description: "Reconstruct a transparent-background PNG from an image whose original transparency was flattened onto a 'fake transparency' checkerboard background (e.g. a screenshot of a web preview). Detects the checker pattern (period, colors, origin), identifies the foreground icon colors, then reverses the alpha-compositing equation per pixel to recover the lost alpha channel. The output PNG is suitable for direct use with image_vectorize. Writes the reconstructed PNG to output_path (defaults to <input>_unbaked.png next to the source) AND returns a base64 preview. By default, source pixel colors are preserved (only alpha is changed) so downstream tools see the full source data — set preserve_source_colors=false to snap pixels to the detected palette instead. Most parameters are auto-detected; manual overrides are available for edge cases.",
 			InputSchema: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -531,6 +531,16 @@ func GetToolDefinitions() []Tool {
 						"type":        "integer",
 						"description": "Longest side (px) of the embedded base64 preview. Default 512.",
 						"default":     512,
+					},
+					"preserve_source_colors": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Keep the original source RGB on foreground pixels (only alpha is changed). Default true. Set to false to snap foreground pixels to the detected palette — destructive but produces a cleaned version with no JPEG color jitter. Edge-blend pixels are always set to the canonical palette color regardless of this flag (the alpha-recovery formula requires it).",
+						"default":     true,
+					},
+					"ambiguous_to_foreground": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Treat pixels that don't fit any clean category as foreground (preserving source color, α=255) rather than transparent. Default true. Eliminates 'pinhole' speckle that JPEG noise produces inside the icon body. Set to false for the conservative behavior (ambiguous pixels become transparent unless much closer to fg than bg).",
+						"default":     true,
 					},
 				},
 				"required": []string{"path"},

@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.6] - 2026-05-02
+
+### Changed
+
+- **`image_unbake_transparency` now preserves source colors by default.** Previously every foreground pixel was snapped to the nearest detected palette entry — a destructive quantization that threw away color information downstream tools (especially `image_vectorize`) need to make good decisions. The default behavior is now: only the alpha channel is changed; pure-fg and ambiguous-fg pixels keep their original RGB values. The unbake step is responsible for "lift the icon off the checker," not for "cleaned palette" — palette decisions now happen in `image_vectorize`.
+- **Ambiguous pixels default to foreground rather than transparent.** JPEG-noise pixels that don't fit any clean category are now treated as opaque foreground (with source color preserved) instead of transparent. Eliminates the "pinhole" speckle that previously appeared inside icon bodies and required an additional 3×3 hole-fill pass.
+
+### Added
+
+- **`preserve_source_colors`** parameter (default `true`). Set to `false` to restore the previous "snap to palette" behavior for use cases where a cleaned/quantized output is preferred. Edge-blend pixels are always set to the canonical palette color regardless of this flag (the alpha-recovery formula requires it).
+- **`ambiguous_to_foreground`** parameter (default `true`). Set to `false` to restore the previous conservative behavior (ambiguous pixels become transparent unless much closer to fg than bg).
+
+### Why this matters
+
+The user reported that the v1.2.5 unbake was hurting their downstream vectorization quality because color quantization at the unbake step left the trace with less information to work with. The fix is correct separation of concerns: unbake produces "the image as it would have been before flattening" (full source data, transparent background); vectorize produces "the image you want to trace" (palette decisions, noise filtering). Validated against `testdata/fake-transparent-image.png`: the unbaked PNG now visually matches the source minus the checker (full color richness preserved), and `image_vectorize` with `max_colors=2 quantize=24 turd_size=80` produces a 56KB SVG with the exact source palette.
+
+[1.2.6]: https://github.com/ironsheep/image_tools_mcp/releases/tag/v1.2.6
+
 ## [1.2.5] - 2026-05-02
 
 ### Added

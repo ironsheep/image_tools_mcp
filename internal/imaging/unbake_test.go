@@ -200,6 +200,165 @@ func TestUnbakeTransparency_RealImage(t *testing.T) {
 	}
 }
 
+// makeJpegLikeIcon synthesizes a checker + colored disk where the disk has
+// realistic per-pixel color jitter (simulating JPEG noise). Used to verify
+// that PreserveSourceColors keeps that jitter intact.
+func makeJpegLikeIcon(w, h, period int, light, dark, fg color.NRGBA, radius int) *image.NRGBA {
+	img := image.NewNRGBA(image.Rect(0, 0, w, h))
+	cx, cy := w/2, h/2
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			cellX := x / period
+			cellY := y / period
+			bg := light
+			if (cellX+cellY)%2 != 0 {
+				bg = dark
+			}
+			dx := x - cx
+			dy := y - cy
+			if dx*dx+dy*dy < radius*radius {
+				// Add deterministic per-pixel jitter — pseudo-noise that's stable across runs.
+				jitter := (x*7 + y*13) % 11 - 5 // -5..+5
+				img.SetNRGBA(x, y, color.NRGBA{
+					R: clampU8(int(fg.R) + jitter),
+					G: clampU8(int(fg.G) + jitter),
+					B: clampU8(int(fg.B) + jitter),
+					A: 255,
+				})
+			} else {
+				img.SetNRGBA(x, y, bg)
+			}
+		}
+	}
+	return img
+}
+
+func clampU8(v int) uint8 {
+	if v < 0 {
+		return 0
+	}
+	if v > 255 {
+		return 255
+	}
+	return uint8(v)
+}
+
+func TestUnbakeTransparency_PreserveSourceColors(t *testing.T) {
+	light := color.NRGBA{R: 254, G: 254, B: 254, A: 255}
+	dark := color.NRGBA{R: 240, G: 240, B: 240, A: 255}
+	fg := color.NRGBA{R: 228, G: 183, B: 99, A: 255}
+	img := makeJpegLikeIcon(400, 400, 25, light, dark, fg, 80)
+
+	// Default: preservation on. Source color jitter must be visible in output.
+	tmpDir := t.TempDir()
+	resPreserve, err := UnbakeTransparency(img, filepath.Join(tmpDir, "preserve.png"), UnbakeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Snap mode: preservation off. Output should be uniformly the palette color.
+	off := false
+	resSnap, err := UnbakeTransparency(img, filepath.Join(tmpDir, "snap.png"), UnbakeOptions{PreserveSourceColors: &off})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Read both back and count distinct opaque colors (excluding pure transparent).
+	countDistinct := func(path string) int {
+		f, err := os.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		decoded, err := png.Decode(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		seen := map[uint32]struct{}{}
+		bounds := decoded.Bounds()
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				r, g, b, a := decoded.At(x, y).RGBA()
+				if a < 32768 {
+					continue
+				}
+				key := uint32(uint8(r>>8))<<16 | uint32(uint8(g>>8))<<8 | uint32(uint8(b>>8))
+				seen[key] = struct{}{}
+			}
+		}
+		return len(seen)
+	}
+
+	preserveColors := countDistinct(resPreserve.OutputPath)
+	snapColors := countDistinct(resSnap.OutputPath)
+	if preserveColors <= snapColors {
+		t.Errorf("preserve mode should show more distinct opaque colors than snap mode; got preserve=%d snap=%d", preserveColors, snapColors)
+	}
+	if snapColors > 5 {
+		t.Errorf("snap mode should yield very few distinct colors (palette+small leakage); got %d", snapColors)
+	}
+}
+
+func TestUnbakeTransparency_AmbiguousToForeground(t *testing.T) {
+	// Use the real fixture image — its JPEG noise reliably produces ambiguous
+	// pixels, which is what this option controls.
+	path := "/workspaces/image_tools_mcp/testdata/fake-transparent-image.png"
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Skip("fixture not present")
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	img, _, err := image.Decode(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tmpDir := t.TempDir()
+	on := true
+	off := false
+	resOn, err := UnbakeTransparency(img, filepath.Join(tmpDir, "ambig_on.png"), UnbakeOptions{AmbiguousToForeground: &on})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resOff, err := UnbakeTransparency(img, filepath.Join(tmpDir, "ambig_off.png"), UnbakeOptions{AmbiguousToForeground: &off})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Count opaque pixels in each output PNG; default mode should have more
+	// (it converts ambiguous pixels to opaque foreground).
+	countOpaque := func(path string) int {
+		f, err := os.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		decoded, err := png.Decode(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		bounds := decoded.Bounds()
+		opaque := 0
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				_, _, _, a := decoded.At(x, y).RGBA()
+				if a > 32768 {
+					opaque++
+				}
+			}
+		}
+		return opaque
+	}
+	onOpaque := countOpaque(resOn.OutputPath)
+	offOpaque := countOpaque(resOff.OutputPath)
+	if onOpaque <= offOpaque {
+		t.Errorf("ambiguous-to-fg=true should produce more opaque pixels: got on=%d off=%d", onOpaque, offOpaque)
+	}
+}
+
 func TestParseHex(t *testing.T) {
 	c, err := parseHex("#E4B763")
 	if err != nil {

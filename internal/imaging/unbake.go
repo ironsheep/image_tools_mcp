@@ -72,6 +72,29 @@ type UnbakeOptions struct {
 	AntiFringeRadius int
 	// MaxPreviewDim caps the longest side of the embedded base64 preview. Default 512.
 	MaxPreviewDim int
+	// PreserveSourceColors keeps the original source RGB on pure-fg and ambiguous-fg
+	// pixels (only alpha is changed). Default true. When false, fg pixels are snapped
+	// to the nearest detected palette entry — destructive but produces a "cleaned"
+	// version of the icon with no JPEG color jitter. The vectorize pipeline benefits
+	// from preservation: it can do its own quantization with full information.
+	// Edge-blend pixels are always set to the canonical palette color (the alpha
+	// recovery formula assumes you know the true foreground color).
+	PreserveSourceColors *bool
+	// AmbiguousToForeground treats pixels that don't fit any clean category as
+	// foreground (preserving their source color, with α=255) rather than transparent.
+	// Default true. Eliminates "pinhole" speckle inside the icon body that JPEG noise
+	// produces. When false, the old conservative behavior applies (ambiguous pixels
+	// become transparent unless much closer to fg than bg).
+	AmbiguousToForeground *bool
+}
+
+// boolDefault returns *p if non-nil, else def. Used for tri-state options that
+// distinguish "unset" (use default) from "explicitly false."
+func boolDefault(p *bool, def bool) bool {
+	if p == nil {
+		return def
+	}
+	return *p
 }
 
 // UnbakeTransparency reconstructs a transparent-background PNG from an image
@@ -101,6 +124,8 @@ func UnbakeTransparency(img image.Image, outputPath string, opts UnbakeOptions) 
 	if antiFringeRadius < 0 {
 		antiFringeRadius = 0
 	}
+	preserveColors := boolDefault(opts.PreserveSourceColors, true)
+	ambiguousToFg := boolDefault(opts.AmbiguousToForeground, true)
 
 	notes := []string{}
 
@@ -139,7 +164,7 @@ func UnbakeTransparency(img image.Image, outputPath string, opts UnbakeOptions) 
 			r, g, b, _ := img.At(bounds.Min.X+x, bounds.Min.Y+y).RGBA()
 			px := RGBColor{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(b >> 8)}
 
-			outPx, cat := classifyPixel(px, x, y, checker, fgPalette, opts)
+			outPx, cat := classifyPixel(px, x, y, checker, fgPalette, opts, preserveColors, ambiguousToFg)
 			out.SetNRGBA(x, y, outPx)
 
 			switch cat {
@@ -157,10 +182,12 @@ func UnbakeTransparency(img image.Image, outputPath string, opts UnbakeOptions) 
 
 	// Stage 4a: fill 1-pixel holes inside the foreground. JPEG noise produces
 	// scattered ambiguous pixels that were classified as transparent; if such a
-	// pixel is surrounded by opaque foreground it should be filled (it's a noise
-	// hole, not an actual transparency feature). Uses a 3×3 majority filter
-	// applied only where the center pixel is transparent.
-	holesFilled := closeForegroundHoles(out)
+	// pixel is surrounded by opaque foreground it should be filled. Skipped when
+	// PreserveSourceColors is on — the fill synthesizes colors from neighbors,
+	// which would defeat the goal of keeping the source pixel data intact.
+	if !preserveColors {
+		_ = closeForegroundHoles(out)
+	}
 
 	// Stage 4b: anti-fringe extension — for any α=0 pixel adjacent to another α=0
 	// pixel across a `radius`-wide neighborhood, propagate transparency inward
@@ -169,7 +196,6 @@ func UnbakeTransparency(img image.Image, outputPath string, opts UnbakeOptions) 
 	if antiFringeRadius > 0 {
 		stats.AntiFringeAdded = applyAntiFringe(out, antiFringeRadius)
 	}
-	_ = holesFilled // diagnostic only; not exposed in stats
 
 	// Encode PNG to disk
 	if err := writePNG(outputPath, out); err != nil {
@@ -652,7 +678,7 @@ const (
 	catAmbiguous
 )
 
-func classifyPixel(p RGBColor, x, y int, ck *CheckerInfo, fg []RGBColor, opts UnbakeOptions) (color.NRGBA, pixCategory) {
+func classifyPixel(p RGBColor, x, y int, ck *CheckerInfo, fg []RGBColor, opts UnbakeOptions, preserveColors, ambiguousToFg bool) (color.NRGBA, pixCategory) {
 	// 1. Background test (tolerant)
 	if isBackgroundLike(p, opts.BgTolerance, ck) {
 		return color.NRGBA{}, catPureBg
@@ -669,10 +695,18 @@ func classifyPixel(p RGBColor, x, y int, ck *CheckerInfo, fg []RGBColor, opts Un
 		}
 	}
 	if bestFgDist <= float64(opts.FgTolerance) {
-		return color.NRGBA{R: fg[bestFg].R, G: fg[bestFg].G, B: fg[bestFg].B, A: 255}, catPureFg
+		out := color.NRGBA{R: fg[bestFg].R, G: fg[bestFg].G, B: fg[bestFg].B, A: 255}
+		if preserveColors {
+			out = color.NRGBA{R: p.R, G: p.G, B: p.B, A: 255}
+		}
+		return out, catPureFg
 	}
 
 	// 3. Edge-blend test: is p on the line segment FG → bg(x,y)?
+	// Edge blends always use the canonical palette color — the alpha-recovery
+	// formula α = ‖p−bg‖ / ‖fg−bg‖ assumes the foreground is the palette entry,
+	// so the output color must be that entry for the result to be self-consistent
+	// when re-composited.
 	bg := bgAt(x, y, ck)
 	bestF := -1
 	bestAlpha := 0.0
@@ -701,27 +735,27 @@ func classifyPixel(p RGBColor, x, y int, ck *CheckerInfo, fg []RGBColor, opts Un
 		if a < 0.05 {
 			return color.NRGBA{}, catPureBg
 		}
-		// Near-1 alphas → snap to opaque so trace gets crisp edges
+		// Near-1 alphas → snap to opaque. Preserve source color if requested.
 		if a > 0.95 {
+			if preserveColors {
+				return color.NRGBA{R: p.R, G: p.G, B: p.B, A: 255}, catPureFg
+			}
 			return color.NRGBA{R: f.R, G: f.G, B: f.B, A: 255}, catPureFg
 		}
 		return color.NRGBA{R: f.R, G: f.G, B: f.B, A: uint8(a * 255)}, catEdgeBlend
 	}
 
-	// 4. Ambiguous fallback. These are pixels that don't match any pure color and
-	//    don't lie cleanly on any foreground→background line. Most of these are
-	//    JPEG noise inside the icon body whose color drifted slightly outside the
-	//    fg tolerance. We have two reasonable options:
-	//      (a) snap to nearest foreground (preserves icon body but creates speckle
-	//          on the OUTSIDE of the icon when noise drifts slightly into "plausibly
-	//          foreground" territory),
-	//      (b) snap to background (cleans up outside but creates pinhole speckle
-	//          INSIDE the icon).
-	//    A median filter post-process would clean either, but that's expensive.
-	//    Pragmatic: snap to nearest fg ONLY if the pixel is much closer to fg than
-	//    to either bg color (margin of 8 RGB units). This catches "JPEG noise inside
-	//    icon" while leaving "noise near checker that was just barely too dark to
-	//    be background" as transparent.
+	// 4. Ambiguous: non-bg pixels that don't fit any clean category. Default
+	//    behavior (ambiguousToFg=true) treats them as foreground with α=255 and
+	//    the source color preserved — they're meaningful color data even if we
+	//    can't classify them precisely. Old behavior (ambiguousToFg=false) is
+	//    conservative: only mark as fg if much closer to fg than bg.
+	if ambiguousToFg {
+		if preserveColors {
+			return color.NRGBA{R: p.R, G: p.G, B: p.B, A: 255}, catAmbiguous
+		}
+		return color.NRGBA{R: fg[bestFg].R, G: fg[bestFg].G, B: fg[bestFg].B, A: 255}, catAmbiguous
+	}
 	d1 := rgbDist(p, ck.Color1)
 	d2 := rgbDist(p, ck.Color2)
 	closestBg := d1
@@ -729,6 +763,9 @@ func classifyPixel(p RGBColor, x, y int, ck *CheckerInfo, fg []RGBColor, opts Un
 		closestBg = d2
 	}
 	if bestFgDist+8 < float64(closestBg) {
+		if preserveColors {
+			return color.NRGBA{R: p.R, G: p.G, B: p.B, A: 255}, catAmbiguous
+		}
 		return color.NRGBA{R: fg[bestFg].R, G: fg[bestFg].G, B: fg[bestFg].B, A: 255}, catAmbiguous
 	}
 	return color.NRGBA{}, catAmbiguous
