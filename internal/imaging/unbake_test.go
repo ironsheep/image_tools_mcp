@@ -418,8 +418,14 @@ func TestUnbakeTransparency_RecoversWhiteRegions(t *testing.T) {
 	gold := color.NRGBA{R: 228, G: 183, B: 99, A: 255}
 	img := makeIconWithWhiteFeatures(400, 400, 25, light, dark, gold)
 
+	// Both recovery passes are needed for this image. Case 2 is on by default;
+	// case 1 (parity-pair) is opt-in because it can produce perimeter artifacts
+	// on icons with irregular boundaries.
+	on := true
 	tmpDir := t.TempDir()
-	res, err := UnbakeTransparency(img, filepath.Join(tmpDir, "out.png"), UnbakeOptions{})
+	res, err := UnbakeTransparency(img, filepath.Join(tmpDir, "out.png"), UnbakeOptions{
+		RecoverColorMatchedIcon: &on,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

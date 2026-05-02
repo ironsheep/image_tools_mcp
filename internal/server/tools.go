@@ -544,8 +544,8 @@ func GetToolDefinitions() []Tool {
 					},
 					"recover_color_matched_icon": map[string]interface{}{
 						"type":        "boolean",
-						"description": "Cell-level pass that detects icon regions containing pure-white (or any near-checker-colored) pixels which would otherwise be misclassified as background. For each background cell, looks at its 4 opposite-parity cell neighbors; if ≥2 are foreground, this cell is sitting in an icon region overriding the checker — flips its pixels to foreground with source RGB restored. Default true. Disable if your image contains real interior background patches you want kept transparent.",
-						"default":     true,
+						"description": "OPT-IN white-region recovery for icons containing pure-white (or near-checker-colored) pixels. When true: switches background detection to predicted-color matching AND runs a cell-level parity-pair pass that flips background cells with ≥2 fg opposite-parity neighbors back to fg with source RGB restored. Default FALSE — the parity-pair pass produces visible blocky perimeter artifacts on icons with irregular boundaries, so it's only worth enabling when the source genuinely contains white regions you want preserved.",
+						"default":     false,
 					},
 					"fill_enclosed_background": map[string]interface{}{
 						"type":        "boolean",

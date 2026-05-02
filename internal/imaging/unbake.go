@@ -88,12 +88,17 @@ type UnbakeOptions struct {
 	// produces. When false, the old conservative behavior applies (ambiguous pixels
 	// become transparent unless much closer to fg than bg).
 	AmbiguousToForeground *bool
-	// RecoverColorMatchedIcon enables a cell-level pass that detects icon regions
-	// containing pure-white (or near-checker-colored) pixels which would otherwise
-	// be misclassified as background. Looks for cells where opposite-parity cell
-	// neighbors contain foreground — flips those cells to foreground with source
-	// RGB restored. Default true. Disable if your image contains real interior
-	// background regions you want kept transparent.
+	// RecoverColorMatchedIcon enables WHITE-region recovery for icons whose
+	// content includes pure-white (or near-checker-colored) pixels. When TRUE:
+	//   - Switches isBackgroundLike to predicted-color matching (more discriminating).
+	//   - Runs a cell-level parity-pair pass that flips background cells with
+	//     ≥2 foreground opposite-parity neighbors back to foreground with source
+	//     RGB restored.
+	// Default FALSE — opt-in. The parity-pair pass produces visible perimeter
+	// artifacts on icons with irregular boundaries (every cell just outside the
+	// icon adjacent to ≥2 fg opposite-parity cells gets flipped, creating a
+	// blocky halo). Only enable when the source genuinely contains white or
+	// other near-checker-colored regions you want preserved.
 	RecoverColorMatchedIcon *bool
 	// FillEnclosedBackground fills regions of "background" pixels that aren't
 	// connected (4-connectivity) to the image border. These are necessarily
@@ -120,12 +125,13 @@ func boolDefault(p *bool, def bool) bool {
 // inverse alpha compositing → optional anti-fringe extension → encode PNG.
 func UnbakeTransparency(img image.Image, outputPath string, opts UnbakeOptions) (*UnbakeResult, error) {
 	if opts.BgTolerance == 0 {
-		// Default 24: tight enough that pure-white pixels (#FFFFFF) in dark-cell
-		// positions are *not* matched against the dark checker color (~#F0F0F0,
-		// distance ~26), so legitimate white icon territory is correctly classified
-		// as foreground. Wide enough to absorb JPEG halo (~7 luma units of
-		// distortion in the ring around the icon).
-		opts.BgTolerance = 24
+		// Default 28: matches v1.2.4-v1.2.6 permissive tolerance. Wide enough to
+		// absorb JPEG halo (~7 luma units of distortion in the ring around the
+		// icon) and slight color jitter on flattened checker patterns. When
+		// RecoverColorMatchedIcon is enabled, this same tolerance is used with
+		// predicted-color matching, which is more discriminating in practice
+		// because it requires matching the *specific* color expected at each (x, y).
+		opts.BgTolerance = 28
 	}
 	if opts.FgTolerance == 0 {
 		opts.FgTolerance = 32
@@ -145,6 +151,14 @@ func UnbakeTransparency(img image.Image, outputPath string, opts UnbakeOptions) 
 	}
 	preserveColors := boolDefault(opts.PreserveSourceColors, true)
 	ambiguousToFg := boolDefault(opts.AmbiguousToForeground, true)
+	// White-region recovery (case 1) is opt-in: it produces visible perimeter
+	// artifacts on icons with irregular boundaries (any cell just outside the
+	// icon adjacent to ≥2 fg opposite-parity cells gets flipped, creating a
+	// blocky halo around the icon). When OFF, isBackgroundLike uses permissive
+	// "either color" matching that classifies all near-white pixels as bg —
+	// matching v1.2.6 behavior. When ON, switches to predicted-color matching
+	// AND runs the parity-pair recovery pass.
+	recoverColorMatched := boolDefault(opts.RecoverColorMatchedIcon, false)
 
 	notes := []string{}
 
@@ -164,7 +178,7 @@ func UnbakeTransparency(img image.Image, outputPath string, opts UnbakeOptions) 
 	}
 
 	// Stage 2: identify foreground colors
-	fgPalette, err := identifyForeground(img, checker, opts)
+	fgPalette, err := identifyForeground(img, checker, opts, recoverColorMatched)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +197,7 @@ func UnbakeTransparency(img image.Image, outputPath string, opts UnbakeOptions) 
 			r, g, b, _ := img.At(bounds.Min.X+x, bounds.Min.Y+y).RGBA()
 			px := RGBColor{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(b >> 8)}
 
-			outPx, cat := classifyPixel(px, x, y, checker, fgPalette, opts, preserveColors, ambiguousToFg)
+			outPx, cat := classifyPixel(px, x, y, checker, fgPalette, opts, preserveColors, ambiguousToFg, recoverColorMatched)
 			out.SetNRGBA(x, y, outPx)
 
 			switch cat {
@@ -206,7 +220,7 @@ func UnbakeTransparency(img image.Image, outputPath string, opts UnbakeOptions) 
 	// cell whose opposite-parity cell neighbors contain foreground is sitting in
 	// an icon white region — flip its pixels to foreground, restoring source RGB.
 	cellsRecovered := 0
-	if boolDefault(opts.RecoverColorMatchedIcon, true) {
+	if recoverColorMatched {
 		cellsRecovered = recoverParityPairCells(out, img, bounds, checker, preserveColors, fgPalette)
 	}
 
@@ -579,7 +593,7 @@ func clusterCornerColors(img image.Image, square int) (RGBColor, RGBColor, int, 
 
 // === Stage 2: foreground identification ===
 
-func identifyForeground(img image.Image, checker *CheckerInfo, opts UnbakeOptions) ([]RGBColor, error) {
+func identifyForeground(img image.Image, checker *CheckerInfo, opts UnbakeOptions, predictedOnly bool) ([]RGBColor, error) {
 	if len(opts.ForegroundColors) > 0 {
 		out := []RGBColor{}
 		for _, h := range opts.ForegroundColors {
@@ -607,7 +621,7 @@ func identifyForeground(img image.Image, checker *CheckerInfo, opts UnbakeOption
 		for x := 0; x < w; x++ {
 			r, g, b, _ := img.At(bounds.Min.X+x, bounds.Min.Y+y).RGBA()
 			px := RGBColor{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(b >> 8)}
-			if isBackgroundLike(px, x, y, opts.BgTolerance, checker) {
+			if isBackgroundLike(px, x, y, opts.BgTolerance, checker, predictedOnly) {
 				continue
 			}
 			rq := uint8((uint32(px.R) / uint32(quantize)) * uint32(quantize))
@@ -680,19 +694,24 @@ func identifyForeground(img image.Image, checker *CheckerInfo, opts UnbakeOption
 	return deduped, nil
 }
 
-// isBackgroundLike returns true if the pixel at (x, y) matches the *predicted*
-// checker color at that location.
+// isBackgroundLike returns true if the pixel is plausibly background.
 //
-// Why predicted-color matching (not "either checker color"): if the source icon
-// contains pure-white regions, those white pixels in dark-cell positions would
-// otherwise look like background (they're near-white desaturated). Testing
-// against the *specific* color expected at that cell position lets us correctly
-// classify icon white in dark cells as foreground, since pure white (#FFFFFF) is
-// far from the dark checker color (~#F0F0F0, distance ~26). White pixels in
-// light-cell positions are still ambiguous with the light checker color (~#FEFEFE,
-// distance ~3) — but the parity-pair cleanup pass downstream catches those by
-// observing that the surrounding cells have foreground pixels at opposite parity.
-func isBackgroundLike(p RGBColor, x, y int, bgTol int, ck *CheckerInfo) bool {
+// Two modes, controlled by the predictedOnly flag:
+//
+//   - predictedOnly=false (default): matches against EITHER checker color, plus a
+//     wide luma-corridor check. Permissive — catches all background and JPEG halo.
+//     Side effect: pure-white icon regions (#FFFFFF) get classified as background
+//     since they're near the light checker color. The user must opt into
+//     predictedOnly mode if their icon contains such regions.
+//
+//   - predictedOnly=true: matches only against the SPECIFIC color predicted at
+//     this (x, y) cell location. Pure-white pixels in dark-cell positions then
+//     classify as foreground (they're far from the dark checker color). Pure-white
+//     pixels in light-cell positions still match the predicted light color and
+//     classify as background — but the parity-pair cell recovery pass downstream
+//     flips those by observing surrounding cells. Only sane to use together with
+//     RecoverColorMatchedIcon.
+func isBackgroundLike(p RGBColor, x, y int, bgTol int, ck *CheckerInfo, predictedOnly bool) bool {
 	mx := max3(p.R, p.G, p.B)
 	mn := min3(p.R, p.G, p.B)
 	if int(mx) < 200 {
@@ -701,8 +720,31 @@ func isBackgroundLike(p RGBColor, x, y int, bgTol int, ck *CheckerInfo) bool {
 	if int(mx)-int(mn) > 16 {
 		return false // saturated → not bg
 	}
-	predicted := bgAt(x, y, ck)
-	return rgbDist(p, predicted) <= bgTol
+	if predictedOnly {
+		// Use a tighter tolerance for predicted-color matching — the predicted
+		// color is more discriminating (no longer "either of two colors"), so
+		// the tolerance can shrink. With the user's typical bgTol=28, predicted
+		// matching uses bgTol-6=22, which keeps pure-white pixels (#FFFFFF) in
+		// dark-cell positions (distance ~26 from #F0F0F0) classified as fg.
+		tol := bgTol - 6
+		if tol < 8 {
+			tol = 8
+		}
+		predicted := bgAt(x, y, ck)
+		return rgbDist(p, predicted) <= tol
+	}
+	// Permissive: match against either checker color, plus luma corridor.
+	d1 := rgbDist(p, ck.Color1)
+	d2 := rgbDist(p, ck.Color2)
+	if d1 <= bgTol || d2 <= bgTol {
+		return true
+	}
+	pl := luma(p)
+	l1, l2 := luma(ck.Color1), luma(ck.Color2)
+	if pl >= min(l1, l2)-bgTol && pl <= max(l1, l2)+bgTol {
+		return true
+	}
+	return false
 }
 
 // === Stage 3: pixel classification + alpha recovery ===
@@ -716,9 +758,9 @@ const (
 	catAmbiguous
 )
 
-func classifyPixel(p RGBColor, x, y int, ck *CheckerInfo, fg []RGBColor, opts UnbakeOptions, preserveColors, ambiguousToFg bool) (color.NRGBA, pixCategory) {
+func classifyPixel(p RGBColor, x, y int, ck *CheckerInfo, fg []RGBColor, opts UnbakeOptions, preserveColors, ambiguousToFg, predictedOnly bool) (color.NRGBA, pixCategory) {
 	// 1. Background test (tolerant)
-	if isBackgroundLike(p, x, y, opts.BgTolerance, ck) {
+	if isBackgroundLike(p, x, y, opts.BgTolerance, ck, predictedOnly) {
 		return color.NRGBA{}, catPureBg
 	}
 

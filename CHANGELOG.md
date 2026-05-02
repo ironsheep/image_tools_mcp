@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.8] - 2026-05-02
+
+### Fixed
+
+- **Perimeter artifacts in unbaked output (regression from v1.2.7).** The parity-pair cell recovery pass was being applied by default and produced visible blocky halos around icons with irregular boundaries: any background cell just outside the icon adjacent to ≥2 fg opposite-parity cells got flipped to foreground, leaving cell-period-sized gray blocks at the perimeter. The pass is now opt-in.
+
+### Changed
+
+- **`recover_color_matched_icon` default flipped to `false`.** This single flag now controls a coupled pair of behaviors: predicted-color background matching AND the parity-pair cell recovery. They have to move together — predicted-color matching alone produces a checkerboard pattern of opaque/transparent pixels in white-icon areas (since light-cell-position pixels still match the predicted light color and become bg). Default behavior now matches v1.2.6 exactly: permissive "either color" matching for background, no parity-pair pass. Users with icons that genuinely contain pure-white (or other near-checker-colored) regions can opt in by passing `recover_color_matched_icon: true`.
+- **`bg_tolerance` default reverted to 28** (was 24 in v1.2.7). Aligns with v1.2.4-v1.2.6. When `recover_color_matched_icon` is on, a tighter internal tolerance is used (`bg_tolerance - 6`) to make predicted-color matching discriminate pure-white from dark-cell predictions.
+
+### Kept (safe v1.2.7 improvements)
+
+- **`fill_enclosed_background`** (case 2 fix) remains on by default — it's a safe fix that uses border flood-fill to recover background-classified pixels enclosed inside the icon. No artifacts on irregular boundaries.
+
+[1.2.8]: https://github.com/ironsheep/image_tools_mcp/releases/tag/v1.2.8
+
 ## [1.2.7] - 2026-05-02
 
 ### Fixed
