@@ -875,17 +875,24 @@ type outerBgResult struct {
 //     shirt under a rider's collar reaching the right edge.
 //  3. Build the outer-bg mask via 4-connectivity flood-fill from any non-fg
 //     border pixel (after gap closure).
-//  4. Rewrite the output: pixels in outer-bg → fully transparent; every other
-//     pixel → source RGB at α=255 (overriding any partial-alpha edge-blend,
-//     since the new rule is "no transforms inside the icon").
+//  4. Rewrite the output: pixels in outer-bg → fully transparent; pixels that
+//     were classified as bg in the draft but are NOT outer-bg (i.e. enclosed)
+//     → source RGB at α=255; everything else → unchanged from the draft (so
+//     edge-blend partial alpha is preserved as a soft anti-aliased edge —
+//     forcing it to α=255 was creating a near-white halo around the icon).
 func applyOuterBackgroundOnly(out *image.NRGBA, src image.Image, srcBounds image.Rectangle, preserveColors bool, fg []RGBColor) outerBgResult {
 	w, h := out.Bounds().Dx(), out.Bounds().Dy()
 
-	// Build foreground mask from draft classification.
+	// Snapshot the draft alpha channel BEFORE any mutation. We need to know
+	// whether each pixel was classified as bg (α==0) so we can preserve
+	// edge-blend partial alphas in the rewrite step instead of stomping them.
+	draftAlpha := make([]uint8, w*h)
 	isFg := make([]bool, w*h)
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
-			if out.NRGBAAt(x, y).A > 0 {
+			a := out.NRGBAAt(x, y).A
+			draftAlpha[y*w+x] = a
+			if a > 0 {
 				isFg[y*w+x] = true
 			}
 		}
@@ -992,9 +999,16 @@ func applyOuterBackgroundOnly(out *image.NRGBA, src image.Image, srcBounds image
 		}
 	}
 
-	// Rewrite output. outer-bg → transparent; everything else → source RGB at
-	// α=255. Count "enclosed retentions" (bg-classified pixels kept opaque
-	// because they weren't connected to the border) for diagnostics.
+	// Rewrite output. Three cases per pixel:
+	//   (a) outer-bg → fully transparent.
+	//   (b) was-bg-but-enclosed → restore source RGB at α=255 (recovery: this
+	//       pixel was misclassified as bg but is actually inside the icon).
+	//   (c) was-fg in the draft → leave the draft pixel unchanged. This
+	//       preserves edge-blend partial alphas (which give the icon a soft
+	//       anti-aliased outline) and any classifier-chosen foreground colors.
+	//       Forcing these to α=255 with source RGB created a near-white halo
+	//       around the icon (the source RGB at edge-blend pixels is the
+	//       icon→checker blend color, often near-white).
 	enclosed := 0
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
@@ -1003,14 +1017,16 @@ func applyOuterBackgroundOnly(out *image.NRGBA, src image.Image, srcBounds image
 				out.SetNRGBA(x, y, color.NRGBA{})
 				continue
 			}
+			if draftAlpha[idx] > 0 {
+				continue // case (c): leave the draft pixel as-is
+			}
+			// case (b): bg-classified pixel that's enclosed by foreground.
 			r, g, b, _ := src.At(srcBounds.Min.X+x, srcBounds.Min.Y+y).RGBA()
 			srcPx := RGBColor{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(b >> 8)}
 			if !preserveColors && len(fg) > 0 {
 				srcPx = nearestRGB(srcPx, fg)
 			}
-			if !isFg[idx] {
-				enclosed++
-			}
+			enclosed++
 			out.SetNRGBA(x, y, color.NRGBA{R: srcPx.R, G: srcPx.G, B: srcPx.B, A: 255})
 		}
 	}

@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.10] - 2026-05-02
+
+### Fixed
+
+- **Whitish outline around the icon (regression from v1.2.9).** The new "outer-background-only" rewrite step was forcing every non-outer-bg pixel to α=255 with source RGB. For edge-blend pixels — which had partial alpha in the draft because they're a soft anti-aliased blend of the icon color and the underlying checker — the source RGB at those positions is the *blended* near-white color. Stomping the partial alpha to 255 made those near-white blends opaque, producing a thin whitish halo around the icon's silhouette.
+- **Fix:** the rewrite step now snapshots the draft alpha channel before any mutation. Three cases per pixel: (a) outer-bg → fully transparent; (b) was-bg-but-enclosed → restore source RGB at α=255 (the recovery case); (c) was-fg in the draft → leave the draft pixel unchanged so its anti-aliased edge alpha is preserved.
+
+[1.2.10]: https://github.com/ironsheep/image_tools_mcp/releases/tag/v1.2.10
+
 ## [1.2.9] - 2026-05-02
 
 ### Fixed
