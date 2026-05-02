@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.9] - 2026-05-02
+
+### Fixed
+
+- **Interior pixel transforms eliminated.** The unbake pipeline was modifying pixels inside the icon (creating "border" rings around enclosed white regions, dropping near-checker-colored pixels along edges). The new rule is principled: only the *outer* background — the connected region of bg-classified pixels reachable from the image border — becomes transparent. Every other pixel keeps its source RGB at α=255. No transforms happen inside the icon.
+- **Per-edge gap closure for white-extending-to-image-border.** When the icon contains a near-checker-colored region (e.g. a white shirt under a rider's collar) that extends to an image border, the previous flood-fill would "escape" through the gap and turn the entire region transparent. The new pipeline runs a 1D convex-hull pass on each of the four image borders before the flood-fill: between the outermost foreground pixels on each border, all pixels are marked foreground so flood-fill cannot escape. Closes the case where the icon's outermost gold pixels bracket a white gap at the image edge.
+
+### Removed
+
+- **Parity-pair cell recovery, anti-fringe ring, and 1-pixel hole-fill passes** are gone — all subsumed by the new "outer background only" rule. The `recover_color_matched_icon`, `fill_enclosed_background`, and `anti_fringe_radius` options are accepted for backward compatibility but no longer affect output (the pipeline always handles enclosed and bracketed regions correctly).
+
+### Internal
+
+- Removed unused `medianInt` helper and an ineffectual assignment in `clusterCornerColors` flagged by `golangci-lint`. Lint passes clean.
+
+[1.2.9]: https://github.com/ironsheep/image_tools_mcp/releases/tag/v1.2.9
+
 ## [1.2.8] - 2026-05-02
 
 ### Fixed

@@ -364,14 +364,18 @@ func TestUnbakeTransparency_AmbiguousToForeground(t *testing.T) {
 }
 
 // makeIconWithWhiteFeatures synthesizes an icon that includes pure-white regions:
-// (1) a white square fully enclosed by gold (case 2: enclosed background),
-// (2) a white rectangle that extends to the image's left edge (case 1: white touching border).
+//
+//	(1) a white square fully enclosed by gold (case 2: enclosed background — fixed
+//	    by border flood-fill not reaching it),
+//	(2) a white rectangle along the LEFT image edge with gold pixels bracketing
+//	    it above and below at that same edge (case 1: white touching border —
+//	    fixed by per-edge gap closure on the left border).
+//
 // The rest of the icon is gold; the rest of the image is checker.
 func makeIconWithWhiteFeatures(w, h, period int, light, dark, gold color.NRGBA) *image.NRGBA {
 	img := image.NewNRGBA(image.Rect(0, 0, w, h))
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
-			// Default: checker bg
 			cx := x / period
 			cy := y / period
 			bg := light
@@ -382,8 +386,9 @@ func makeIconWithWhiteFeatures(w, h, period int, light, dark, gold color.NRGBA) 
 		}
 	}
 
-	// Gold "body" — a large rectangle in the middle
-	bodyX1, bodyY1, bodyX2, bodyY2 := w/4, h/4, 3*w/4, 3*h/4
+	// Gold "body" — a large rectangle that extends to the LEFT image edge so the
+	// per-edge gap closure has something to bracket the white stripe with.
+	bodyX1, bodyY1, bodyX2, bodyY2 := 0, h/4, 3*w/4, 3*h/4
 	for y := bodyY1; y < bodyY2; y++ {
 		for x := bodyX1; x < bodyX2; x++ {
 			img.SetNRGBA(x, y, gold)
@@ -401,10 +406,12 @@ func makeIconWithWhiteFeatures(w, h, period int, light, dark, gold color.NRGBA) 
 		}
 	}
 
-	// Case 1: white rectangle extending from gold body to the LEFT image edge
+	// Case 1: a white rectangle replacing part of the gold along the LEFT edge.
+	// The gold body still has gold above (y < stripeY1) and below (y >= stripeY2)
+	// the stripe at x=0..stripeRight, so per-edge closure can bridge the gap.
 	stripeY1, stripeY2 := h/2-period*2, h/2+period*2
 	for y := stripeY1; y < stripeY2; y++ {
-		for x := 0; x < bodyX1+period*3; x++ {
+		for x := 0; x < period*4; x++ {
 			img.SetNRGBA(x, y, color.NRGBA{255, 255, 255, 255})
 		}
 	}
@@ -418,24 +425,22 @@ func TestUnbakeTransparency_RecoversWhiteRegions(t *testing.T) {
 	gold := color.NRGBA{R: 228, G: 183, B: 99, A: 255}
 	img := makeIconWithWhiteFeatures(400, 400, 25, light, dark, gold)
 
-	// Both recovery passes are needed for this image. Case 2 is on by default;
-	// case 1 (parity-pair) is opt-in because it can produce perimeter artifacts
-	// on icons with irregular boundaries.
-	on := true
+	// New rule (v1.2.9+) handles both cases without any opt-in flag:
+	//   - Case 2 (enclosed white): border flood-fill can't reach it → kept opaque.
+	//   - Case 1 (white touching border with gold bracketing): per-edge gap
+	//     closure bridges the white at the border so flood-fill can't escape.
 	tmpDir := t.TempDir()
-	res, err := UnbakeTransparency(img, filepath.Join(tmpDir, "out.png"), UnbakeOptions{
-		RecoverColorMatchedIcon: &on,
-	})
+	res, err := UnbakeTransparency(img, filepath.Join(tmpDir, "out.png"), UnbakeOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Both recovery paths should have triggered.
+	// Both diagnostic counters should be non-zero.
 	if res.PixelStats.EnclosedBackgroundFilled == 0 {
-		t.Errorf("expected enclosed background fills (case 2: enclosed white eye), got 0")
+		t.Errorf("expected enclosed retention (case 2: enclosed white eye), got 0")
 	}
 	if res.PixelStats.CellsRecovered == 0 {
-		t.Errorf("expected cell recoveries (case 1: white stripe to border), got 0")
+		t.Errorf("expected per-edge gap closure (case 1: white stripe at border), got 0")
 	}
 
 	// Check specific pixels in the output:
