@@ -44,12 +44,14 @@ type UnbakeResult struct {
 
 // UnbakeStats reports per-pixel classification counts.
 type UnbakeStats struct {
-	Total           int `json:"total"`
-	PureBackground  int `json:"pure_background"`
-	PureForeground  int `json:"pure_foreground"`
-	EdgeBlend       int `json:"edge_blend"`        // recovered partial alpha
-	Ambiguous       int `json:"ambiguous"`         // could not classify cleanly
-	AntiFringeAdded int `json:"anti_fringe_added"` // pixels forced to α=0 by edge enhancement
+	Total                    int `json:"total"`
+	PureBackground           int `json:"pure_background"`
+	PureForeground           int `json:"pure_foreground"`
+	EdgeBlend                int `json:"edge_blend"`                 // recovered partial alpha
+	Ambiguous                int `json:"ambiguous"`                  // could not classify cleanly
+	AntiFringeAdded          int `json:"anti_fringe_added"`          // pixels forced to α=0 by edge enhancement
+	CellsRecovered           int `json:"cells_recovered"`            // pixels recovered by parity-pair cell check
+	EnclosedBackgroundFilled int `json:"enclosed_background_filled"` // pixels recovered by border flood-fill
 }
 
 // UnbakeOptions tunes the reconstruction pipeline.
@@ -86,6 +88,18 @@ type UnbakeOptions struct {
 	// produces. When false, the old conservative behavior applies (ambiguous pixels
 	// become transparent unless much closer to fg than bg).
 	AmbiguousToForeground *bool
+	// RecoverColorMatchedIcon enables a cell-level pass that detects icon regions
+	// containing pure-white (or near-checker-colored) pixels which would otherwise
+	// be misclassified as background. Looks for cells where opposite-parity cell
+	// neighbors contain foreground — flips those cells to foreground with source
+	// RGB restored. Default true. Disable if your image contains real interior
+	// background regions you want kept transparent.
+	RecoverColorMatchedIcon *bool
+	// FillEnclosedBackground fills regions of "background" pixels that aren't
+	// connected (4-connectivity) to the image border. These are necessarily
+	// holes inside foreground regions and should be opaque (e.g. the white of an
+	// eye in a face logo). Default true.
+	FillEnclosedBackground *bool
 }
 
 // boolDefault returns *p if non-nil, else def. Used for tri-state options that
@@ -106,7 +120,12 @@ func boolDefault(p *bool, def bool) bool {
 // inverse alpha compositing → optional anti-fringe extension → encode PNG.
 func UnbakeTransparency(img image.Image, outputPath string, opts UnbakeOptions) (*UnbakeResult, error) {
 	if opts.BgTolerance == 0 {
-		opts.BgTolerance = 28
+		// Default 24: tight enough that pure-white pixels (#FFFFFF) in dark-cell
+		// positions are *not* matched against the dark checker color (~#F0F0F0,
+		// distance ~26), so legitimate white icon territory is correctly classified
+		// as foreground. Wide enough to absorb JPEG halo (~7 luma units of
+		// distortion in the ring around the icon).
+		opts.BgTolerance = 24
 	}
 	if opts.FgTolerance == 0 {
 		opts.FgTolerance = 32
@@ -180,6 +199,26 @@ func UnbakeTransparency(img image.Image, outputPath string, opts UnbakeOptions) 
 		}
 	}
 
+	// Stage 3.5a: parity-pair cell check. For images where the icon contains
+	// pure-white (or near-white) regions, light-cell-position pixels of those
+	// regions are misclassified as background (since they look indistinguishable
+	// from the light checker color). Detect this by looking at cells: a "background"
+	// cell whose opposite-parity cell neighbors contain foreground is sitting in
+	// an icon white region — flip its pixels to foreground, restoring source RGB.
+	cellsRecovered := 0
+	if boolDefault(opts.RecoverColorMatchedIcon, true) {
+		cellsRecovered = recoverParityPairCells(out, img, bounds, checker, preserveColors, fgPalette)
+	}
+
+	// Stage 3.5b: border flood-fill. Any background pixels not connected (4-conn)
+	// to the image border are inside a foreground-enclosed region — they're
+	// "holes" in the icon (e.g., the white of an eye in a face logo) and should
+	// be foreground.
+	enclosedFilled := 0
+	if boolDefault(opts.FillEnclosedBackground, true) {
+		enclosedFilled = fillEnclosedBackground(out, img, bounds, preserveColors, fgPalette)
+	}
+
 	// Stage 4a: fill 1-pixel holes inside the foreground. JPEG noise produces
 	// scattered ambiguous pixels that were classified as transparent; if such a
 	// pixel is surrounded by opaque foreground it should be filled. Skipped when
@@ -188,6 +227,8 @@ func UnbakeTransparency(img image.Image, outputPath string, opts UnbakeOptions) 
 	if !preserveColors {
 		_ = closeForegroundHoles(out)
 	}
+	stats.CellsRecovered = cellsRecovered
+	stats.EnclosedBackgroundFilled = enclosedFilled
 
 	// Stage 4b: anti-fringe extension — for any α=0 pixel adjacent to another α=0
 	// pixel across a `radius`-wide neighborhood, propagate transparency inward
@@ -566,7 +607,7 @@ func identifyForeground(img image.Image, checker *CheckerInfo, opts UnbakeOption
 		for x := 0; x < w; x++ {
 			r, g, b, _ := img.At(bounds.Min.X+x, bounds.Min.Y+y).RGBA()
 			px := RGBColor{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(b >> 8)}
-			if isBackgroundLike(px, opts.BgTolerance, checker) {
+			if isBackgroundLike(px, x, y, opts.BgTolerance, checker) {
 				continue
 			}
 			rq := uint8((uint32(px.R) / uint32(quantize)) * uint32(quantize))
@@ -639,32 +680,29 @@ func identifyForeground(img image.Image, checker *CheckerInfo, opts UnbakeOption
 	return deduped, nil
 }
 
-// isBackgroundLike returns true if the pixel is plausibly part of the
-// checker background or its JPEG halo: near-white, desaturated, and within
-// tolerance of either checker color.
-func isBackgroundLike(p RGBColor, bgTol int, ck *CheckerInfo) bool {
+// isBackgroundLike returns true if the pixel at (x, y) matches the *predicted*
+// checker color at that location.
+//
+// Why predicted-color matching (not "either checker color"): if the source icon
+// contains pure-white regions, those white pixels in dark-cell positions would
+// otherwise look like background (they're near-white desaturated). Testing
+// against the *specific* color expected at that cell position lets us correctly
+// classify icon white in dark cells as foreground, since pure white (#FFFFFF) is
+// far from the dark checker color (~#F0F0F0, distance ~26). White pixels in
+// light-cell positions are still ambiguous with the light checker color (~#FEFEFE,
+// distance ~3) — but the parity-pair cleanup pass downstream catches those by
+// observing that the surrounding cells have foreground pixels at opposite parity.
+func isBackgroundLike(p RGBColor, x, y int, bgTol int, ck *CheckerInfo) bool {
 	mx := max3(p.R, p.G, p.B)
 	mn := min3(p.R, p.G, p.B)
 	if int(mx) < 200 {
 		return false
 	}
 	if int(mx)-int(mn) > 16 {
-		return false // saturated
+		return false // saturated → not bg
 	}
-	d1 := rgbDist(p, ck.Color1)
-	d2 := rgbDist(p, ck.Color2)
-	if d1 <= bgTol || d2 <= bgTol {
-		return true
-	}
-	// Also check against the linear interpolation between the two (for halo pixels
-	// that fell between the two band centers due to JPEG smoothing).
-	pl := luma(p)
-	l1, l2 := luma(ck.Color1), luma(ck.Color2)
-	if pl >= min(l1, l2)-bgTol && pl <= max(l1, l2)+bgTol {
-		// Within the luma corridor; check chromaticity
-		return true
-	}
-	return false
+	predicted := bgAt(x, y, ck)
+	return rgbDist(p, predicted) <= bgTol
 }
 
 // === Stage 3: pixel classification + alpha recovery ===
@@ -680,7 +718,7 @@ const (
 
 func classifyPixel(p RGBColor, x, y int, ck *CheckerInfo, fg []RGBColor, opts UnbakeOptions, preserveColors, ambiguousToFg bool) (color.NRGBA, pixCategory) {
 	// 1. Background test (tolerant)
-	if isBackgroundLike(p, opts.BgTolerance, ck) {
+	if isBackgroundLike(p, x, y, opts.BgTolerance, ck) {
 		return color.NRGBA{}, catPureBg
 	}
 
@@ -801,6 +839,220 @@ func projectOnSegment(p, f, b RGBColor) (float64, float64, bool) {
 	cz := alpha * dz
 	perp := math.Sqrt((px-cx)*(px-cx) + (py-cy)*(py-cy) + (pz-cz)*(pz-cz))
 	return alpha, perp, true
+}
+
+// recoverParityPairCells handles the "icon contains pure-white regions" case.
+//
+// When the source icon includes white (or any near-checker-color) areas, the
+// pixel-level classifier marks light-cell-position pixels of those areas as
+// background (since they look indistinguishable from the light checker color)
+// and dark-cell-position pixels as foreground. This produces a checker pattern
+// of fg/bg classification within what should be a uniform fg region.
+//
+// We detect this at cell granularity. For each cell that's currently classified
+// background (>=80% of its pixels transparent), we look at its 4 opposite-parity
+// cell neighbors. If ≥2 of them are classified foreground (>=20% opaque pixels),
+// this cell is sitting in an icon region overriding the checker — we flip all
+// its pixels to foreground, restoring source RGB (or the nearest fg palette
+// color if PreserveSourceColors is off).
+//
+// The threshold of 2 (not 1) prevents over-growing the icon at its actual edge,
+// where typically only one parity neighbor is foreground.
+//
+// Returns the number of pixels recovered.
+func recoverParityPairCells(out *image.NRGBA, src image.Image, srcBounds image.Rectangle, ck *CheckerInfo, preserveColors bool, fg []RGBColor) int {
+	w, h := out.Bounds().Dx(), out.Bounds().Dy()
+	period := ck.Period
+	cellsW := (w + period - 1) / period
+	cellsH := (h + period - 1) / period
+
+	// First pass: compute per-cell foreground fraction.
+	cellFgFrac := make([]float64, cellsW*cellsH)
+	for cy := 0; cy < cellsH; cy++ {
+		for cx := 0; cx < cellsW; cx++ {
+			x0 := cx * period
+			y0 := cy * period
+			x1 := x0 + period
+			y1 := y0 + period
+			if x1 > w {
+				x1 = w
+			}
+			if y1 > h {
+				y1 = h
+			}
+			fgCount := 0
+			total := 0
+			for y := y0; y < y1; y++ {
+				for x := x0; x < x1; x++ {
+					total++
+					if out.NRGBAAt(x, y).A > 0 {
+						fgCount++
+					}
+				}
+			}
+			cellFgFrac[cy*cellsW+cx] = float64(fgCount) / float64(total)
+		}
+	}
+
+	// Determine each cell's parity.
+	cellParity := func(cx, cy int) int {
+		return ((cx + cy) % 2 + 2) % 2
+	}
+
+	// Second pass: identify cells to flip.
+	flipCell := make([]bool, cellsW*cellsH)
+	for cy := 0; cy < cellsH; cy++ {
+		for cx := 0; cx < cellsW; cx++ {
+			if cellFgFrac[cy*cellsW+cx] >= 0.8 {
+				continue // already mostly fg
+			}
+			if cellFgFrac[cy*cellsW+cx] >= 0.2 {
+				continue // mixed, leave as-is (real edge cell)
+			}
+			// This cell is mostly background. Check opposite-parity neighbors.
+			myParity := cellParity(cx, cy)
+			fgNeighbors := 0
+			for _, d := range [4][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
+				nx, ny := cx+d[0], cy+d[1]
+				if nx < 0 || nx >= cellsW || ny < 0 || ny >= cellsH {
+					continue
+				}
+				if cellParity(nx, ny) == myParity {
+					continue
+				}
+				if cellFgFrac[ny*cellsW+nx] >= 0.5 {
+					fgNeighbors++
+				}
+			}
+			if fgNeighbors >= 2 {
+				flipCell[cy*cellsW+cx] = true
+			}
+		}
+	}
+
+	// Third pass: apply flips. Restore source RGB (or nearest fg palette color).
+	recovered := 0
+	for cy := 0; cy < cellsH; cy++ {
+		for cx := 0; cx < cellsW; cx++ {
+			if !flipCell[cy*cellsW+cx] {
+				continue
+			}
+			x0 := cx * period
+			y0 := cy * period
+			x1 := x0 + period
+			y1 := y0 + period
+			if x1 > w {
+				x1 = w
+			}
+			if y1 > h {
+				y1 = h
+			}
+			for y := y0; y < y1; y++ {
+				for x := x0; x < x1; x++ {
+					if out.NRGBAAt(x, y).A > 0 {
+						continue // leave already-classified pixels alone
+					}
+					out.SetNRGBA(x, y, recoveredPixelColor(src, srcBounds, x, y, preserveColors, fg))
+					recovered++
+				}
+			}
+		}
+	}
+	return recovered
+}
+
+// fillEnclosedBackground identifies background-classified pixels that are not
+// connected (4-connectivity) to any image border, and flips them to foreground
+// with restored source RGB. These are necessarily "holes" inside foreground
+// regions (e.g. the white of an eye in a face logo).
+//
+// Implementation: BFS from every border pixel that has α=0; mark every reached
+// transparent pixel as "true background." Any α=0 pixel not reached is enclosed
+// and gets flipped.
+func fillEnclosedBackground(out *image.NRGBA, src image.Image, srcBounds image.Rectangle, preserveColors bool, fg []RGBColor) int {
+	w, h := out.Bounds().Dx(), out.Bounds().Dy()
+	reached := make([]bool, w*h)
+	queue := make([][2]int, 0, w*2+h*2)
+
+	enqueueBorder := func(x, y int) {
+		if x < 0 || x >= w || y < 0 || y >= h {
+			return
+		}
+		if out.NRGBAAt(x, y).A != 0 {
+			return
+		}
+		if reached[y*w+x] {
+			return
+		}
+		reached[y*w+x] = true
+		queue = append(queue, [2]int{x, y})
+	}
+	for x := 0; x < w; x++ {
+		enqueueBorder(x, 0)
+		enqueueBorder(x, h-1)
+	}
+	for y := 0; y < h; y++ {
+		enqueueBorder(0, y)
+		enqueueBorder(w-1, y)
+	}
+
+	for head := 0; head < len(queue); head++ {
+		x, y := queue[head][0], queue[head][1]
+		for _, d := range [4][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
+			nx, ny := x+d[0], y+d[1]
+			if nx < 0 || nx >= w || ny < 0 || ny >= h {
+				continue
+			}
+			if reached[ny*w+nx] {
+				continue
+			}
+			if out.NRGBAAt(nx, ny).A != 0 {
+				continue
+			}
+			reached[ny*w+nx] = true
+			queue = append(queue, [2]int{nx, ny})
+		}
+	}
+
+	// Any α=0 pixel not in reached is enclosed.
+	filled := 0
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if reached[y*w+x] {
+				continue
+			}
+			if out.NRGBAAt(x, y).A != 0 {
+				continue
+			}
+			out.SetNRGBA(x, y, recoveredPixelColor(src, srcBounds, x, y, preserveColors, fg))
+			filled++
+		}
+	}
+	return filled
+}
+
+// recoveredPixelColor produces the output color for a pixel being flipped from
+// background to foreground. Reads source RGB from the original image when
+// PreserveSourceColors is on; otherwise snaps to the nearest fg palette entry.
+func recoveredPixelColor(src image.Image, bounds image.Rectangle, x, y int, preserveColors bool, fg []RGBColor) color.NRGBA {
+	r, g, b, _ := src.At(bounds.Min.X+x, bounds.Min.Y+y).RGBA()
+	srcPx := RGBColor{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(b >> 8)}
+	if preserveColors {
+		return color.NRGBA{R: srcPx.R, G: srcPx.G, B: srcPx.B, A: 255}
+	}
+	if len(fg) == 0 {
+		return color.NRGBA{R: srcPx.R, G: srcPx.G, B: srcPx.B, A: 255}
+	}
+	bestI := 0
+	bestD := math.MaxFloat64
+	for i, f := range fg {
+		d := float64(rgbDist(srcPx, f))
+		if d < bestD {
+			bestD = d
+			bestI = i
+		}
+	}
+	return color.NRGBA{R: fg[bestI].R, G: fg[bestI].G, B: fg[bestI].B, A: 255}
 }
 
 // closeForegroundHoles fills isolated 1-pixel transparent holes inside the

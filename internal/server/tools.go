@@ -478,7 +478,7 @@ func GetToolDefinitions() []Tool {
 
 		{
 			Name:        "image_unbake_transparency",
-			Description: "Reconstruct a transparent-background PNG from an image whose original transparency was flattened onto a 'fake transparency' checkerboard background (e.g. a screenshot of a web preview). Detects the checker pattern (period, colors, origin), identifies the foreground icon colors, then reverses the alpha-compositing equation per pixel to recover the lost alpha channel. The output PNG is suitable for direct use with image_vectorize. Writes the reconstructed PNG to output_path (defaults to <input>_unbaked.png next to the source) AND returns a base64 preview. By default, source pixel colors are preserved (only alpha is changed) so downstream tools see the full source data — set preserve_source_colors=false to snap pixels to the detected palette instead. Most parameters are auto-detected; manual overrides are available for edge cases.",
+			Description: "Reconstruct a transparent-background PNG from an image whose original transparency was flattened onto a 'fake transparency' checkerboard background (e.g. a screenshot of a web preview). Detects the checker pattern (period, colors, origin), identifies the foreground icon colors, then reverses the alpha-compositing equation per pixel to recover the lost alpha channel. Two extra recovery passes handle edge cases where icon content matches the checker color: a parity-pair cell check (recovers icon regions containing pure-white or near-checker-colored pixels) and a border flood-fill (recovers background-colored regions enclosed inside the icon, like the white of an eye). The output PNG is suitable for direct use with image_vectorize. Writes the reconstructed PNG to output_path (defaults to <input>_unbaked.png next to the source) AND returns a base64 preview. By default, source pixel colors are preserved (only alpha is changed). Most parameters are auto-detected; manual overrides are available for edge cases.",
 			InputSchema: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -540,6 +540,16 @@ func GetToolDefinitions() []Tool {
 					"ambiguous_to_foreground": map[string]interface{}{
 						"type":        "boolean",
 						"description": "Treat pixels that don't fit any clean category as foreground (preserving source color, α=255) rather than transparent. Default true. Eliminates 'pinhole' speckle that JPEG noise produces inside the icon body. Set to false for the conservative behavior (ambiguous pixels become transparent unless much closer to fg than bg).",
+						"default":     true,
+					},
+					"recover_color_matched_icon": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Cell-level pass that detects icon regions containing pure-white (or any near-checker-colored) pixels which would otherwise be misclassified as background. For each background cell, looks at its 4 opposite-parity cell neighbors; if ≥2 are foreground, this cell is sitting in an icon region overriding the checker — flips its pixels to foreground with source RGB restored. Default true. Disable if your image contains real interior background patches you want kept transparent.",
+						"default":     true,
+					},
+					"fill_enclosed_background": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Fill regions of background pixels that aren't connected (4-conn) to the image border. These are necessarily holes inside foreground regions (e.g. the white of an eye in a face logo) and should be opaque. Default true.",
 						"default":     true,
 					},
 				},

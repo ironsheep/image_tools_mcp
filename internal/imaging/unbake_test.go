@@ -123,8 +123,12 @@ func TestUnbakeTransparency_KnownPattern(t *testing.T) {
 		}
 	}
 	matchPct := float64(matchAlpha) / float64(totalAlpha) * 100
-	if matchPct < 99.0 {
-		t.Errorf("alpha agreement %.2f%% < 99%%", matchPct)
+	// 97% threshold: tolerates the slight expansion at the disk boundary that
+	// cell-level recovery introduces (a tradeoff for correctly handling icons
+	// that contain pure-white or near-checker-colored regions; see
+	// TestUnbakeTransparency_RecoversWhiteRegions).
+	if matchPct < 97.0 {
+		t.Errorf("alpha agreement %.2f%% < 97%%", matchPct)
 	}
 }
 
@@ -356,6 +360,110 @@ func TestUnbakeTransparency_AmbiguousToForeground(t *testing.T) {
 	offOpaque := countOpaque(resOff.OutputPath)
 	if onOpaque <= offOpaque {
 		t.Errorf("ambiguous-to-fg=true should produce more opaque pixels: got on=%d off=%d", onOpaque, offOpaque)
+	}
+}
+
+// makeIconWithWhiteFeatures synthesizes an icon that includes pure-white regions:
+// (1) a white square fully enclosed by gold (case 2: enclosed background),
+// (2) a white rectangle that extends to the image's left edge (case 1: white touching border).
+// The rest of the icon is gold; the rest of the image is checker.
+func makeIconWithWhiteFeatures(w, h, period int, light, dark, gold color.NRGBA) *image.NRGBA {
+	img := image.NewNRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			// Default: checker bg
+			cx := x / period
+			cy := y / period
+			bg := light
+			if (cx+cy)%2 != 0 {
+				bg = dark
+			}
+			img.SetNRGBA(x, y, bg)
+		}
+	}
+
+	// Gold "body" — a large rectangle in the middle
+	bodyX1, bodyY1, bodyX2, bodyY2 := w/4, h/4, 3*w/4, 3*h/4
+	for y := bodyY1; y < bodyY2; y++ {
+		for x := bodyX1; x < bodyX2; x++ {
+			img.SetNRGBA(x, y, gold)
+		}
+	}
+
+	// Case 2: white "eye" enclosed inside the gold body
+	eyeCx, eyeCy, eyeR := w/2+w/8, h/2, w/16
+	for y := eyeCy - eyeR; y < eyeCy+eyeR; y++ {
+		for x := eyeCx - eyeR; x < eyeCx+eyeR; x++ {
+			dx, dy := x-eyeCx, y-eyeCy
+			if dx*dx+dy*dy < eyeR*eyeR {
+				img.SetNRGBA(x, y, color.NRGBA{255, 255, 255, 255})
+			}
+		}
+	}
+
+	// Case 1: white rectangle extending from gold body to the LEFT image edge
+	stripeY1, stripeY2 := h/2-period*2, h/2+period*2
+	for y := stripeY1; y < stripeY2; y++ {
+		for x := 0; x < bodyX1+period*3; x++ {
+			img.SetNRGBA(x, y, color.NRGBA{255, 255, 255, 255})
+		}
+	}
+
+	return img
+}
+
+func TestUnbakeTransparency_RecoversWhiteRegions(t *testing.T) {
+	light := color.NRGBA{R: 254, G: 254, B: 254, A: 255}
+	dark := color.NRGBA{R: 240, G: 240, B: 240, A: 255}
+	gold := color.NRGBA{R: 228, G: 183, B: 99, A: 255}
+	img := makeIconWithWhiteFeatures(400, 400, 25, light, dark, gold)
+
+	tmpDir := t.TempDir()
+	res, err := UnbakeTransparency(img, filepath.Join(tmpDir, "out.png"), UnbakeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Both recovery paths should have triggered.
+	if res.PixelStats.EnclosedBackgroundFilled == 0 {
+		t.Errorf("expected enclosed background fills (case 2: enclosed white eye), got 0")
+	}
+	if res.PixelStats.CellsRecovered == 0 {
+		t.Errorf("expected cell recoveries (case 1: white stripe to border), got 0")
+	}
+
+	// Check specific pixels in the output:
+	f, err := os.Open(res.OutputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	out, err := png.Decode(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Eye center: should be opaque white
+	eyeCx, eyeCy := 400/2+400/8, 400/2
+	r, g, b, a := out.At(eyeCx, eyeCy).RGBA()
+	if a < 32768 {
+		t.Errorf("eye center (case 2): expected opaque, got α=%d", a>>8)
+	}
+	if r>>8 < 240 || g>>8 < 240 || b>>8 < 240 {
+		t.Errorf("eye center: expected near-white, got #%02X%02X%02X", r>>8, g>>8, b>>8)
+	}
+
+	// Stripe center (away from border): should be opaque white
+	stripeCx, stripeCy := 50, 400/2 // well into the stripe, near left border
+	_, _, _, sa := out.At(stripeCx, stripeCy).RGBA()
+	if sa < 32768 {
+		t.Errorf("stripe interior (case 1): expected opaque, got α=%d", sa>>8)
+	}
+
+	// Outer corner: should still be transparent (genuine background)
+	_, _, _, ca := out.At(2, 2).RGBA()
+	if ca > 32768 {
+		t.Errorf("outer corner: expected transparent, got α=%d", ca>>8)
 	}
 }
 

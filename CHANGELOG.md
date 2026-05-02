@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.7] - 2026-05-02
+
+### Fixed
+
+- **White (and other near-checker-colored) icon regions were being dropped.** Previously, foreground pixels whose color happened to match either checker color were classified as background. This affected:
+  - **Case 1: white icon regions extending to the image border.** A pure-white area in the icon would have its light-cell-position pixels match `~#FEFEFE` (the light checker color) and become transparent.
+  - **Case 2: white icon regions fully enclosed by other foreground.** Same cause — pixels in the eye of a face logo, the white in a horse's blaze, etc., all turned transparent.
+
+### Changed
+
+- **`isBackgroundLike` now uses predicted-color matching** instead of "either checker color." A pixel is only classified as background if it matches the *specific* checker color expected at its `(x, y)` cell location. This means pure-white pixels in dark-cell positions (which are far from the dark checker color) are correctly classified as foreground; only the light-cell-position pixels of a white region remain ambiguous. The two new recovery passes catch those.
+- **Default `bg_tolerance` reduced from 28 to 24.** Tighter enforcement of the predicted-color match so pure-white pixels in dark-cell positions definitely don't slip through.
+
+### Added
+
+- **Parity-pair cell-recovery pass** (Case 1 fix). After per-pixel classification, runs a cell-level check: for each cell that's mostly background, looks at its 4 opposite-parity cell neighbors; if ≥2 of them contain foreground, this cell is sitting in an icon region overriding the checker pattern. All its pixels are flipped to foreground, with source RGB restored. The threshold of 2 (not 1) prevents over-growing the icon at its actual boundary, where typically only one parity-neighbor cell is foreground.
+- **Border flood-fill pass** (Case 2 fix). Background pixels not connected (4-connectivity) to any image border are necessarily holes inside foreground regions — they're flipped to foreground with source RGB restored.
+- **`recover_color_matched_icon`** parameter (default `true`). Disables the parity-pair pass.
+- **`fill_enclosed_background`** parameter (default `true`). Disables the border flood-fill pass.
+- New `pixel_stats` fields: `cells_recovered` and `enclosed_background_filled` count how many pixels each pass restored.
+
+### Why this matters
+
+The previous version would silently lose icon detail in any image with white or other near-checker-colored regions — extremely common (white teeth in a face logo, white shirt on a person, the white of an eye, blank space in a logo design that's intentionally white). The two recovery passes restore those regions without requiring the user to manually identify them. Validated on the existing fixture: `cells_recovered: 14653` (the rider's white helmet/clothing now correctly preserved); `enclosed_background_filled: 1320` (smaller enclosed regions); palette unchanged at `#E8B868 / #A87828`.
+
+[1.2.7]: https://github.com/ironsheep/image_tools_mcp/releases/tag/v1.2.7
+
 ## [1.2.6] - 2026-05-02
 
 ### Changed

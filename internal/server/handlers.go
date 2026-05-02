@@ -547,8 +547,10 @@ type imageUnbakeTransparencyArgs struct {
 	EdgeBlendTolerance    float64  `json:"edge_blend_tolerance"`
 	AntiFringeRadius      int      `json:"anti_fringe_radius"`
 	MaxPreviewDim         int      `json:"max_preview_dim"`
-	PreserveSourceColors  *bool    `json:"preserve_source_colors,omitempty"`
-	AmbiguousToForeground *bool    `json:"ambiguous_to_foreground,omitempty"`
+	PreserveSourceColors    *bool `json:"preserve_source_colors,omitempty"`
+	AmbiguousToForeground   *bool `json:"ambiguous_to_foreground,omitempty"`
+	RecoverColorMatchedIcon *bool `json:"recover_color_matched_icon,omitempty"`
+	FillEnclosedBackground  *bool `json:"fill_enclosed_background,omitempty"`
 	Checker               *struct {
 		Color1Hex   string `json:"color1"`
 		Color2Hex   string `json:"color2"`
@@ -595,8 +597,10 @@ func (s *Server) handleImageUnbakeTransparency(args json.RawMessage) (interface{
 		EdgeBlendTolerance:    a.EdgeBlendTolerance,
 		AntiFringeRadius:      a.AntiFringeRadius,
 		MaxPreviewDim:         a.MaxPreviewDim,
-		PreserveSourceColors:  a.PreserveSourceColors,
-		AmbiguousToForeground: a.AmbiguousToForeground,
+		PreserveSourceColors:    a.PreserveSourceColors,
+		AmbiguousToForeground:   a.AmbiguousToForeground,
+		RecoverColorMatchedIcon: a.RecoverColorMatchedIcon,
+		FillEnclosedBackground:  a.FillEnclosedBackground,
 	}
 	if a.Checker != nil {
 		c1, err := parseHexLocal(a.Checker.Color1Hex)
