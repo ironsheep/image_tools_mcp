@@ -1003,12 +1003,27 @@ func applyOuterBackgroundOnly(out *image.NRGBA, src image.Image, srcBounds image
 	//   (a) outer-bg → fully transparent.
 	//   (b) was-bg-but-enclosed → restore source RGB at α=255 (recovery: this
 	//       pixel was misclassified as bg but is actually inside the icon).
-	//   (c) was-fg in the draft → leave the draft pixel unchanged. This
-	//       preserves edge-blend partial alphas (which give the icon a soft
-	//       anti-aliased outline) and any classifier-chosen foreground colors.
-	//       Forcing these to α=255 with source RGB created a near-white halo
-	//       around the icon (the source RGB at edge-blend pixels is the
-	//       icon→checker blend color, often near-white).
+	//   (c) was-fg with partial alpha (edge-blend) AND adjacent to outer-bg →
+	//       keep the partial alpha (this is the icon's true outer edge, where
+	//       a soft anti-aliased blend looks correct).
+	//   (d) was-fg with partial alpha (edge-blend) NOT adjacent to outer-bg →
+	//       interior boundary (e.g. between two icon colors, or the rim of an
+	//       enclosed white region). The classifier mistook it for an icon→bg
+	//       blend, but there's no actual bg here. Force fully opaque with
+	//       source RGB so it doesn't appear as a translucent halo.
+	//   (e) was-fully-opaque fg → leave unchanged.
+	hasOuterBgNeighbor := func(x, y int) bool {
+		for _, d := range [4][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
+			nx, ny := x+d[0], y+d[1]
+			if nx < 0 || nx >= w || ny < 0 || ny >= h {
+				continue
+			}
+			if outerBg[ny*w+nx] {
+				return true
+			}
+		}
+		return false
+	}
 	enclosed := 0
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
@@ -1017,16 +1032,26 @@ func applyOuterBackgroundOnly(out *image.NRGBA, src image.Image, srcBounds image
 				out.SetNRGBA(x, y, color.NRGBA{})
 				continue
 			}
-			if draftAlpha[idx] > 0 {
-				continue // case (c): leave the draft pixel as-is
+			a := draftAlpha[idx]
+			if a == 255 {
+				continue // case (e): solid foreground, leave as-is
 			}
-			// case (b): bg-classified pixel that's enclosed by foreground.
+			if a > 0 && a < 255 {
+				// edge-blend
+				if hasOuterBgNeighbor(x, y) {
+					continue // case (c): legitimate outer edge, keep partial alpha
+				}
+				// case (d): interior edge-blend, restore source RGB at full alpha.
+			}
+			// cases (b) and (d): restore source RGB at α=255.
 			r, g, b, _ := src.At(srcBounds.Min.X+x, srcBounds.Min.Y+y).RGBA()
 			srcPx := RGBColor{R: uint8(r >> 8), G: uint8(g >> 8), B: uint8(b >> 8)}
 			if !preserveColors && len(fg) > 0 {
 				srcPx = nearestRGB(srcPx, fg)
 			}
-			enclosed++
+			if a == 0 {
+				enclosed++
+			}
 			out.SetNRGBA(x, y, color.NRGBA{R: srcPx.R, G: srcPx.G, B: srcPx.B, A: 255})
 		}
 	}

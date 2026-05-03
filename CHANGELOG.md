@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.11] - 2026-05-03
+
+### Fixed
+
+- **Semi-transparent halos around interior boundaries.** Edge-blend pixels (those with partial alpha in the draft, marking a soft icon→bg blend) are correctly preserved at the icon's *outer* edge so it has a smooth anti-aliased outline. But edge-blend pixels at *interior* boundaries — the rim of an enclosed white region, or the line between two icon colors — were also being preserved, producing a translucent ring around every interior color transition.
+- **Fix:** in the rewrite step, edge-blend pixels are now classified by whether they have any 4-connected outer-bg neighbor:
+  - **Has outer-bg neighbor** → keep partial alpha (legitimate outer edge, soft anti-aliased blend looks correct).
+  - **No outer-bg neighbor** → force fully opaque with source RGB. Interior boundary; no actual background here, so no fade needed.
+
+This completes the principle: the only transparency in the output is at the icon's true outer perimeter. All interior pixels (including color transitions inside the icon) are fully opaque with their source RGB.
+
+[1.2.11]: https://github.com/ironsheep/image_tools_mcp/releases/tag/v1.2.11
+
 ## [1.2.10] - 2026-05-02
 
 ### Fixed
