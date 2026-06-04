@@ -99,3 +99,48 @@ jobs:
         with:
           name: image-tools-mcp-${{ matrix.goos }}-${{ matrix.goarch }}
           path: image-tools-mcp*
+
+  # Static-link regression gate: catch a non-static build at PR time instead of
+  # at release. Builds the same Dockerfile.static used by the release legs (§4),
+  # asserts the binary is fully static, and runs the OCR smoke to prove the
+  # embedded Tesseract/tessdata work with no system Tesseract present. The
+  # lint/test/build jobs above stay the fast dynamic gates.
+  static-build:
+    name: Static Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build static binary (host arch)
+        run: |
+          docker buildx build \
+            -f Dockerfile.static \
+            --target export-binaries \
+            -o type=local,dest=build-out \
+            .
+          mv build-out/image-tools-mcp image-tools-mcp-static
+          chmod +x image-tools-mcp-static
+
+      - name: Assert static binary
+        run: |
+          ldd image-tools-mcp-static 2>&1 | grep -q "not a dynamic executable" \
+            || { echo "ERROR: binary is dynamically linked"; ldd image-tools-mcp-static; exit 1; }
+          file image-tools-mcp-static | grep -q "statically linked" \
+            || { echo "ERROR: file does not report statically linked"; file image-tools-mcp-static; exit 1; }
+          echo "OK: image-tools-mcp-static is statically linked"
+
+      - name: Smoke test - OCR with embedded tesseract
+        run: |
+          TEST_IMAGE="$(pwd)/testdata/simple_diagram.png"
+          RESPONSE=$(echo "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"image_ocr_full\",\"arguments\":{\"path\":\"${TEST_IMAGE}\",\"language\":\"eng\"}}}" | \
+            timeout 30 ./image-tools-mcp-static | head -50)
+          echo "OCR response: $RESPONSE"
+          echo "$RESPONSE" | grep -q "tesseract not found" \
+            && { echo "ERROR: OCR could not find embedded tesseract"; exit 1; }
+          echo "$RESPONSE" | grep -q "full_text" \
+            || { echo "ERROR: OCR did not return a result"; exit 1; }
+          echo "OK: OCR ran against the static binary with embedded tesseract"
