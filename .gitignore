@@ -54,3 +54,6 @@ DOCs/DO-NOT-USE.zip
 
 # Devcontainer local override (private mounts, machine-specific)
 .devcontainer/docker-compose.override.yml
+
+# Completed sprint plans are moved here and intentionally not tracked
+DOCs/plans/archive/

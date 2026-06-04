@@ -136,7 +136,8 @@ func TestUnbakeTransparency_RealImage(t *testing.T) {
 	// Regression test against the actual fake-transparent fixture. Asserts
 	// detected checker matches measured ground truth and reconstructed file is
 	// produced with the expected foreground palette.
-	path := "/workspaces/image_tools_mcp/testdata/fake-transparent-image.png"
+	// Repo-relative: Go runs tests with CWD = this package dir (internal/imaging).
+	path := "../../testdata/fake-transparent-image.png"
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		t.Skip("fixture not present")
 	}
@@ -306,7 +307,8 @@ func TestUnbakeTransparency_PreserveSourceColors(t *testing.T) {
 func TestUnbakeTransparency_AmbiguousToForeground(t *testing.T) {
 	// Use the real fixture image — its JPEG noise reliably produces ambiguous
 	// pixels, which is what this option controls.
-	path := "/workspaces/image_tools_mcp/testdata/fake-transparent-image.png"
+	// Repo-relative: Go runs tests with CWD = this package dir (internal/imaging).
+	path := "../../testdata/fake-transparent-image.png"
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		t.Skip("fixture not present")
 	}
