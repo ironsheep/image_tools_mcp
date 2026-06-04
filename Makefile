@@ -118,6 +118,7 @@ dist-static:
 		$(if $(STATIC_PLATFORM),--platform $(STATIC_PLATFORM),) \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg BUILD_TIME="$(BUILD_TIME)" \
+		--build-arg GIT_COMMIT=$(GIT_COMMIT) \
 		-o type=local,dest=dist/static-tmp \
 		.
 	@mv dist/static-tmp/image-tools-mcp dist/$(BINARY)-linux-$(STATIC_ARCH)

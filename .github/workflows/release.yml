@@ -17,34 +17,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.25'
-
-      - name: Install Tesseract dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libtesseract-dev libleptonica-dev
-
-      - name: Download tessdata
-        run: ./scripts/ensure-tessdata.sh
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Get version
         id: version
         run: echo "VERSION=$(cat VERSION)" >> $GITHUB_OUTPUT
 
-      - name: Build Linux AMD64 binary
+      # Native (no qemu): this runner is amd64, so Dockerfile.static builds the
+      # amd64 static binary directly. The fully static binary carries its own
+      # Leptonica/Tesseract + embedded tessdata, so no apt libtesseract-dev /
+      # libleptonica-dev and no host-side tessdata download are needed.
+      - name: Build Linux AMD64 static binary
         run: |
-          LDFLAGS="-s -w"
-          LDFLAGS="${LDFLAGS} -X 'main.Version=${{ steps.version.outputs.VERSION }}'"
-          LDFLAGS="${LDFLAGS} -X 'main.BuildTime=$(date -u +"%Y-%m-%d %H:%M:%S UTC")'"
-          LDFLAGS="${LDFLAGS} -X 'main.GitCommit=$(git rev-parse --short HEAD)'"
+          docker buildx build \
+            -f Dockerfile.static \
+            --target export-binaries \
+            --build-arg VERSION="${{ steps.version.outputs.VERSION }}" \
+            --build-arg BUILD_TIME="$(date -u +"%Y-%m-%d %H:%M:%S UTC")" \
+            --build-arg GIT_COMMIT="$(git rev-parse --short HEAD)" \
+            -o type=local,dest=build-out \
+            .
+          mv build-out/image-tools-mcp "image-tools-mcp-v${{ steps.version.outputs.VERSION }}-linux-amd64"
+          chmod +x "image-tools-mcp-v${{ steps.version.outputs.VERSION }}-linux-amd64"
 
-          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
-            -ldflags="${LDFLAGS}" \
-            -o "image-tools-mcp-v${{ steps.version.outputs.VERSION }}-linux-amd64" \
-            ./cmd/image-mcp
+      # Protection point: fail the build if the binary is not fully static.
+      - name: Assert static binary
+        run: |
+          BIN="image-tools-mcp-v${{ steps.version.outputs.VERSION }}-linux-amd64"
+          ldd "$BIN" 2>&1 | grep -q "not a dynamic executable" \
+            || { echo "ERROR: $BIN is dynamically linked"; ldd "$BIN"; exit 1; }
+          file "$BIN" | grep -q "statically linked" \
+            || { echo "ERROR: file does not report statically linked"; file "$BIN"; exit 1; }
+          echo "OK: $BIN is statically linked"
 
       - name: Smoke test - Version
         run: |
@@ -103,34 +108,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.25'
-
-      - name: Install Tesseract dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libtesseract-dev libleptonica-dev
-
-      - name: Download tessdata
-        run: ./scripts/ensure-tessdata.sh
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Get version
         id: version
         run: echo "VERSION=$(cat VERSION)" >> $GITHUB_OUTPUT
 
-      - name: Build Linux ARM64 binary
+      # Native (no qemu): this runner is arm64, so Dockerfile.static builds the
+      # arm64 static binary directly. The fully static binary carries its own
+      # Leptonica/Tesseract + embedded tessdata, so no apt libtesseract-dev /
+      # libleptonica-dev and no host-side tessdata download are needed.
+      - name: Build Linux ARM64 static binary
         run: |
-          LDFLAGS="-s -w"
-          LDFLAGS="${LDFLAGS} -X 'main.Version=${{ steps.version.outputs.VERSION }}'"
-          LDFLAGS="${LDFLAGS} -X 'main.BuildTime=$(date -u +"%Y-%m-%d %H:%M:%S UTC")'"
-          LDFLAGS="${LDFLAGS} -X 'main.GitCommit=$(git rev-parse --short HEAD)'"
+          docker buildx build \
+            -f Dockerfile.static \
+            --target export-binaries \
+            --build-arg VERSION="${{ steps.version.outputs.VERSION }}" \
+            --build-arg BUILD_TIME="$(date -u +"%Y-%m-%d %H:%M:%S UTC")" \
+            --build-arg GIT_COMMIT="$(git rev-parse --short HEAD)" \
+            -o type=local,dest=build-out \
+            .
+          mv build-out/image-tools-mcp "image-tools-mcp-v${{ steps.version.outputs.VERSION }}-linux-arm64"
+          chmod +x "image-tools-mcp-v${{ steps.version.outputs.VERSION }}-linux-arm64"
 
-          CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build \
-            -ldflags="${LDFLAGS}" \
-            -o "image-tools-mcp-v${{ steps.version.outputs.VERSION }}-linux-arm64" \
-            ./cmd/image-mcp
+      # Protection point: fail the build if the binary is not fully static.
+      - name: Assert static binary
+        run: |
+          BIN="image-tools-mcp-v${{ steps.version.outputs.VERSION }}-linux-arm64"
+          ldd "$BIN" 2>&1 | grep -q "not a dynamic executable" \
+            || { echo "ERROR: $BIN is dynamically linked"; ldd "$BIN"; exit 1; }
+          file "$BIN" | grep -q "statically linked" \
+            || { echo "ERROR: file does not report statically linked"; file "$BIN"; exit 1; }
+          echo "OK: $BIN is statically linked"
 
       - name: Smoke test - Version
         run: |

@@ -83,6 +83,9 @@ RUN bash scripts/ensure-tessdata.sh
 
 ARG VERSION=dev
 ARG BUILD_TIME=unknown
+# .git is excluded from the build context (.dockerignore), so the commit hash
+# cannot be derived inside the build — callers pass it via --build-arg.
+ARG GIT_COMMIT=unknown
 
 # Fully static CGO build. gosseract injects "-lleptonica -ltesseract" in the
 # wrong order for static resolution and omits the transitive codec/runtime
@@ -92,7 +95,7 @@ ARG BUILD_TIME=unknown
 ENV CGO_LDFLAGS="-L/usr/local/lib -Wl,--start-group -ltesseract -lleptonica -lpng16 -lz -lstdc++ -lm -Wl,--end-group"
 RUN CGO_ENABLED=1 GOOS=linux go build \
     -tags cgo \
-    -ldflags="-s -w -linkmode external -extldflags '-static -static-libstdc++ -static-libgcc' -X 'main.Version=${VERSION}' -X 'main.BuildTime=${BUILD_TIME}'" \
+    -ldflags="-s -w -linkmode external -extldflags '-static -static-libstdc++ -static-libgcc' -X 'main.Version=${VERSION}' -X 'main.BuildTime=${BUILD_TIME}' -X 'main.GitCommit=${GIT_COMMIT}'" \
     -o /image-mcp ./cmd/image-mcp
 
 # ---------------------------------------------------------------------------
