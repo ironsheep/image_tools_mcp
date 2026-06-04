@@ -539,19 +539,19 @@ func (s *Server) handleImageVectorize(args json.RawMessage) (interface{}, error)
 }
 
 type imageUnbakeTransparencyArgs struct {
-	Path                  string   `json:"path"`
-	OutputPath            string   `json:"output_path"`
-	ForegroundColors      []string `json:"foreground_colors"`
-	BgTolerance           int      `json:"bg_tolerance"`
-	FgTolerance           int      `json:"fg_tolerance"`
-	EdgeBlendTolerance    float64  `json:"edge_blend_tolerance"`
-	AntiFringeRadius      int      `json:"anti_fringe_radius"`
-	MaxPreviewDim         int      `json:"max_preview_dim"`
-	PreserveSourceColors    *bool `json:"preserve_source_colors,omitempty"`
-	AmbiguousToForeground   *bool `json:"ambiguous_to_foreground,omitempty"`
-	RecoverColorMatchedIcon *bool `json:"recover_color_matched_icon,omitempty"`
-	FillEnclosedBackground  *bool `json:"fill_enclosed_background,omitempty"`
-	Checker               *struct {
+	Path                    string   `json:"path"`
+	OutputPath              string   `json:"output_path"`
+	ForegroundColors        []string `json:"foreground_colors"`
+	BgTolerance             int      `json:"bg_tolerance"`
+	FgTolerance             int      `json:"fg_tolerance"`
+	EdgeBlendTolerance      float64  `json:"edge_blend_tolerance"`
+	AntiFringeRadius        int      `json:"anti_fringe_radius"`
+	MaxPreviewDim           int      `json:"max_preview_dim"`
+	PreserveSourceColors    *bool    `json:"preserve_source_colors,omitempty"`
+	AmbiguousToForeground   *bool    `json:"ambiguous_to_foreground,omitempty"`
+	RecoverColorMatchedIcon *bool    `json:"recover_color_matched_icon,omitempty"`
+	FillEnclosedBackground  *bool    `json:"fill_enclosed_background,omitempty"`
+	Checker                 *struct {
 		Color1Hex   string `json:"color1"`
 		Color2Hex   string `json:"color2"`
 		Period      int    `json:"period"`
@@ -591,12 +591,12 @@ func (s *Server) handleImageUnbakeTransparency(args json.RawMessage) (interface{
 		outPath = base + "_unbaked" + ext
 	}
 	opts := imaging.UnbakeOptions{
-		ForegroundColors:      a.ForegroundColors,
-		BgTolerance:           a.BgTolerance,
-		FgTolerance:           a.FgTolerance,
-		EdgeBlendTolerance:    a.EdgeBlendTolerance,
-		AntiFringeRadius:      a.AntiFringeRadius,
-		MaxPreviewDim:         a.MaxPreviewDim,
+		ForegroundColors:        a.ForegroundColors,
+		BgTolerance:             a.BgTolerance,
+		FgTolerance:             a.FgTolerance,
+		EdgeBlendTolerance:      a.EdgeBlendTolerance,
+		AntiFringeRadius:        a.AntiFringeRadius,
+		MaxPreviewDim:           a.MaxPreviewDim,
 		PreserveSourceColors:    a.PreserveSourceColors,
 		AmbiguousToForeground:   a.AmbiguousToForeground,
 		RecoverColorMatchedIcon: a.RecoverColorMatchedIcon,
@@ -642,8 +642,8 @@ func parseHexLocal(s string) (imaging.RGBColor, error) {
 // === Analysis Helper Handlers ===
 
 type imageCheckAlignmentArgs struct {
-	Path      string `json:"path"`
-	Points    []struct {
+	Path   string `json:"path"`
+	Points []struct {
 		X int `json:"x"`
 		Y int `json:"y"`
 	} `json:"points"`

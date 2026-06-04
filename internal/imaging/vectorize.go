@@ -255,4 +255,3 @@ func newColorMask(w, h, idx int, assignment []int) *gotrace.Bitmap {
 	}
 	return gotrace.NewBitmapFromImage(mask, nil)
 }
-

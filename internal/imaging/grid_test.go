@@ -148,12 +148,12 @@ func TestParseHexColor(t *testing.T) {
 		{"#0000FF", 0, 0, 255, 255, false},
 		{"#FFFFFF", 255, 255, 255, 255, false},
 		{"#000000", 0, 0, 0, 255, false},
-		{"FF0000", 255, 0, 0, 255, false},      // without #
-		{"#FF000080", 255, 0, 0, 128, false},   // with alpha
-		{"FF000080", 255, 0, 0, 128, false},    // without # with alpha
-		{"", 0, 0, 0, 0, true},                 // empty
-		{"#FFF", 0, 0, 0, 0, true},             // invalid length
-		{"#GGGGGG", 0, 0, 0, 0, true},          // invalid hex
+		{"FF0000", 255, 0, 0, 255, false},    // without #
+		{"#FF000080", 255, 0, 0, 128, false}, // with alpha
+		{"FF000080", 255, 0, 0, 128, false},  // without # with alpha
+		{"", 0, 0, 0, 0, true},               // empty
+		{"#FFF", 0, 0, 0, 0, true},           // invalid length
+		{"#GGGGGG", 0, 0, 0, 0, true},        // invalid hex
 	}
 
 	for _, tt := range tests {

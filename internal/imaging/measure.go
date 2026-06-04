@@ -84,11 +84,11 @@ func MeasureDistance(img image.Image, x1, y1, x2, y2 int) (*DistanceResult, erro
 	angle := math.Atan2(float64(deltaY), float64(deltaX)) * 180 / math.Pi
 
 	return &DistanceResult{
-		DistancePixels:       math.Round(distance*100) / 100,
-		DeltaX:               deltaX,
-		DeltaY:               deltaY,
-		AngleDegrees:         math.Round(angle*10) / 10,
-		DistancePercentWidth: math.Round(distance/width*1000) / 10,
+		DistancePixels:        math.Round(distance*100) / 100,
+		DeltaX:                deltaX,
+		DeltaY:                deltaY,
+		AngleDegrees:          math.Round(angle*10) / 10,
+		DistancePercentWidth:  math.Round(distance/width*1000) / 10,
 		DistancePercentHeight: math.Round(distance/height*1000) / 10,
 	}, nil
 }

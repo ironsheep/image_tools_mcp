@@ -72,11 +72,11 @@ func TestMeasureDistance_PercentValues(t *testing.T) {
 
 func TestCheckAlignment(t *testing.T) {
 	tests := []struct {
-		name       string
-		points     []Point
-		tolerance  int
-		wantHoriz  bool
-		wantVert   bool
+		name      string
+		points    []Point
+		tolerance int
+		wantHoriz bool
+		wantVert  bool
 	}{
 		{
 			"horizontal line",
@@ -161,10 +161,10 @@ func TestCompareRegions(t *testing.T) {
 	img := createPatternImage(100, 100)
 
 	tests := []struct {
-		name             string
-		r1, r2           Region
-		wantSimilar      bool   // expect > 0.9 similarity
-		wantSameSize     bool
+		name         string
+		r1, r2       Region
+		wantSimilar  bool // expect > 0.9 similarity
+		wantSameSize bool
 	}{
 		{
 			"identical regions",
@@ -175,8 +175,8 @@ func TestCompareRegions(t *testing.T) {
 		},
 		{
 			"different regions (red vs green)",
-			Region{X1: 0, Y1: 0, X2: 50, Y2: 50},     // red
-			Region{X1: 50, Y1: 0, X2: 100, Y2: 50},   // green
+			Region{X1: 0, Y1: 0, X2: 50, Y2: 50},   // red
+			Region{X1: 50, Y1: 0, X2: 100, Y2: 50}, // green
 			false,
 			true,
 		},
@@ -274,4 +274,3 @@ func TestAbsDiff(t *testing.T) {
 		}
 	}
 }
-

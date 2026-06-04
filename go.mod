@@ -1,6 +1,6 @@
 module github.com/ironsheep/image-tools-mcp
 
-go 1.23
+go 1.25
 
 require (
 	github.com/disintegration/imaging v1.6.2

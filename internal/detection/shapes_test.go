@@ -275,9 +275,9 @@ func TestFloodFill(t *testing.T) {
 
 func TestGrayValue(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 10, 10))
-	img.Set(5, 5, color.RGBA{255, 0, 0, 255})    // red
-	img.Set(6, 5, color.RGBA{0, 255, 0, 255})    // green
-	img.Set(7, 5, color.RGBA{0, 0, 255, 255})    // blue
+	img.Set(5, 5, color.RGBA{255, 0, 0, 255})     // red
+	img.Set(6, 5, color.RGBA{0, 255, 0, 255})     // green
+	img.Set(7, 5, color.RGBA{0, 0, 255, 255})     // blue
 	img.Set(8, 5, color.RGBA{128, 128, 128, 255}) // gray
 
 	// Red: 0.299*255 = 76.2

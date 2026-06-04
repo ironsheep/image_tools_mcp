@@ -17,9 +17,9 @@ func TestNew(t *testing.T) {
 
 func TestMCPRequest_Unmarshal(t *testing.T) {
 	tests := []struct {
-		name    string
-		json    string
-		wantID  interface{}
+		name       string
+		json       string
+		wantID     interface{}
 		wantMethod string
 	}{
 		{

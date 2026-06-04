@@ -263,14 +263,14 @@ func DetectLines(img image.Image, minLength int, detectArrows bool) (*LinesResul
 		}
 
 		lines = append(lines, Line{
-			Start:          Point{X: startX + bounds.Min.X, Y: startY + bounds.Min.Y},
-			End:            Point{X: endX + bounds.Min.X, Y: endY + bounds.Min.Y},
-			Length:         math.Round(length*10) / 10,
-			AngleDegrees:   math.Round(angleDeg*10) / 10,
-			Color:          color,
+			Start:           Point{X: startX + bounds.Min.X, Y: startY + bounds.Min.Y},
+			End:             Point{X: endX + bounds.Min.X, Y: endY + bounds.Min.Y},
+			Length:          math.Round(length*10) / 10,
+			AngleDegrees:    math.Round(angleDeg*10) / 10,
+			Color:           color,
 			ThicknessApprox: thickness,
-			HasArrowStart:  hasArrowStart,
-			HasArrowEnd:    hasArrowEnd,
+			HasArrowStart:   hasArrowStart,
+			HasArrowEnd:     hasArrowEnd,
 		})
 	}
 

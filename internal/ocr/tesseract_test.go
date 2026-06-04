@@ -177,7 +177,7 @@ func TestExtractText(t *testing.T) {
 	if err != nil {
 		// Tesseract might not be installed - skip test
 		if strings.Contains(err.Error(), "tesseract") ||
-		   strings.Contains(err.Error(), "library") {
+			strings.Contains(err.Error(), "library") {
 			t.Skip("Tesseract not available")
 		}
 		t.Fatalf("ExtractText failed: %v", err)
@@ -228,7 +228,7 @@ func TestExtractTextFromRegion(t *testing.T) {
 	result, err := ExtractTextFromRegion(img, 50, 40, 150, 60, "eng")
 	if err != nil {
 		if strings.Contains(err.Error(), "tesseract") ||
-		   strings.Contains(err.Error(), "library") {
+			strings.Contains(err.Error(), "library") {
 			t.Skip("Tesseract not available")
 		}
 		t.Fatalf("ExtractTextFromRegion failed: %v", err)
@@ -286,7 +286,7 @@ func TestDetectTextRegions(t *testing.T) {
 	result, err := DetectTextRegions(imgPath, 0.3)
 	if err != nil {
 		if strings.Contains(err.Error(), "tesseract") ||
-		   strings.Contains(err.Error(), "library") {
+			strings.Contains(err.Error(), "library") {
 			t.Skip("Tesseract not available")
 		}
 		t.Fatalf("DetectTextRegions failed: %v", err)

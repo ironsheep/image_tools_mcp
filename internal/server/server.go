@@ -38,9 +38,9 @@ type Server struct {
 // The ID field can be a string, number, or null. Requests without an ID
 // are notifications and don't receive responses.
 type MCPRequest struct {
-	JSONRPC string          `json:"jsonrpc"` // Must be "2.0"
-	ID      interface{}     `json:"id"`      // Request identifier (string, number, or null)
-	Method  string          `json:"method"`  // Method name to invoke
+	JSONRPC string          `json:"jsonrpc"`          // Must be "2.0"
+	ID      interface{}     `json:"id"`               // Request identifier (string, number, or null)
+	Method  string          `json:"method"`           // Method name to invoke
 	Params  json.RawMessage `json:"params,omitempty"` // Method parameters (optional)
 }
 
@@ -48,8 +48,8 @@ type MCPRequest struct {
 //
 // Either Result or Error will be set, never both.
 type MCPResponse struct {
-	JSONRPC string      `json:"jsonrpc"`         // Always "2.0"
-	ID      interface{} `json:"id"`              // Matches request ID
+	JSONRPC string      `json:"jsonrpc"`          // Always "2.0"
+	ID      interface{} `json:"id"`               // Matches request ID
 	Result  interface{} `json:"result,omitempty"` // Success result (mutually exclusive with Error)
 	Error   *MCPError   `json:"error,omitempty"`  // Error details (mutually exclusive with Result)
 }
@@ -74,8 +74,8 @@ type MCPError struct {
 // Notifications are messages without an ID that don't expect a response.
 // Currently unused but defined for protocol completeness.
 type MCPNotification struct {
-	JSONRPC string      `json:"jsonrpc"` // Always "2.0"
-	Method  string      `json:"method"`  // Notification method name
+	JSONRPC string      `json:"jsonrpc"`          // Always "2.0"
+	Method  string      `json:"method"`           // Notification method name
 	Params  interface{} `json:"params,omitempty"` // Notification parameters
 }
 

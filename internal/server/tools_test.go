@@ -248,17 +248,17 @@ func TestToolDefinitions_OptionalDefaults(t *testing.T) {
 
 	// Tools with optional parameters that should have defaults
 	toolDefaults := map[string]map[string]interface{}{
-		"image_crop":             {"scale": 1.0},
-		"image_crop_quadrant":    {"scale": 1.0},
-		"image_dominant_colors":  {"count": 5},
-		"image_grid_overlay":     {"grid_spacing": 50, "show_coordinates": true, "grid_color": "#FF000080"},
-		"image_ocr_full":         {"language": "eng"},
+		"image_crop":              {"scale": 1.0},
+		"image_crop_quadrant":     {"scale": 1.0},
+		"image_dominant_colors":   {"count": 5},
+		"image_grid_overlay":      {"grid_spacing": 50, "show_coordinates": true, "grid_color": "#FF000080"},
+		"image_ocr_full":          {"language": "eng"},
 		"image_detect_rectangles": {"min_area": 100, "tolerance": 0.9},
-		"image_detect_lines":     {"min_length": 20, "detect_arrows": true},
-		"image_detect_circles":   {"min_radius": 5, "max_radius": 500},
-		"image_edge_detect":      {"threshold_low": 50, "threshold_high": 150},
-		"image_vectorize":        {"turd_size": 2, "alpha_max": 1.0},
-		"image_check_alignment":  {"tolerance": 5},
+		"image_detect_lines":      {"min_length": 20, "detect_arrows": true},
+		"image_detect_circles":    {"min_radius": 5, "max_radius": 500},
+		"image_edge_detect":       {"threshold_low": 50, "threshold_high": 150},
+		"image_vectorize":         {"turd_size": 2, "alpha_max": 1.0},
+		"image_check_alignment":   {"tolerance": 5},
 	}
 
 	toolMap := make(map[string]Tool)

@@ -65,10 +65,10 @@ func TestSampleColor(t *testing.T) {
 
 func TestSampleColor_KnownColors(t *testing.T) {
 	tests := []struct {
-		name     string
-		color    color.RGBA
-		wantHex  string
-		wantHue  int // approximate
+		name    string
+		color   color.RGBA
+		wantHex string
+		wantHue int // approximate
 	}{
 		{"pure red", color.RGBA{255, 0, 0, 255}, "#FF0000", 0},
 		{"pure green", color.RGBA{0, 255, 0, 255}, "#00FF00", 120},
@@ -275,11 +275,11 @@ func TestDominantColors_SingleColor(t *testing.T) {
 
 func TestRgbToHSL(t *testing.T) {
 	tests := []struct {
-		name     string
-		r, g, b  uint8
-		wantH    int
-		wantS    int
-		wantL    int
+		name    string
+		r, g, b uint8
+		wantH   int
+		wantS   int
+		wantL   int
 	}{
 		{"red", 255, 0, 0, 0, 100, 50},
 		{"green", 0, 255, 0, 120, 100, 50},

@@ -49,8 +49,8 @@ func TestEdgeDetect_DifferentThresholds(t *testing.T) {
 	img := createEdgeTestImage(50, 50)
 
 	tests := []struct {
-		name         string
-		low, high    int
+		name      string
+		low, high int
 	}{
 		{"low thresholds", 10, 50},
 		{"medium thresholds", 50, 150},
@@ -193,11 +193,11 @@ func TestClamp(t *testing.T) {
 	tests := []struct {
 		val, min, max, want int
 	}{
-		{5, 0, 10, 5},    // within range
-		{-1, 0, 10, 0},   // below min
-		{15, 0, 10, 10},  // above max
-		{0, 0, 10, 0},    // at min
-		{10, 0, 10, 10},  // at max
+		{5, 0, 10, 5},   // within range
+		{-1, 0, 10, 0},  // below min
+		{15, 0, 10, 10}, // above max
+		{0, 0, 10, 0},   // at min
+		{10, 0, 10, 10}, // at max
 	}
 
 	for _, tt := range tests {
@@ -224,8 +224,8 @@ func createEdgeTestImage(width, height int) image.Image {
 	}
 
 	// Black rectangle in center (creates 4 edges)
-	for y := height/4; y < 3*height/4; y++ {
-		for x := width/4; x < 3*width/4; x++ {
+	for y := height / 4; y < 3*height/4; y++ {
+		for x := width / 4; x < 3*width/4; x++ {
 			img.Set(x, y, color.Black)
 		}
 	}

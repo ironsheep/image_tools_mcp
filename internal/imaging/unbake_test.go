@@ -222,7 +222,7 @@ func makeJpegLikeIcon(w, h, period int, light, dark, fg color.NRGBA, radius int)
 			dy := y - cy
 			if dx*dx+dy*dy < radius*radius {
 				// Add deterministic per-pixel jitter — pseudo-noise that's stable across runs.
-				jitter := (x*7 + y*13) % 11 - 5 // -5..+5
+				jitter := (x*7+y*13)%11 - 5 // -5..+5
 				img.SetNRGBA(x, y, color.NRGBA{
 					R: clampU8(int(fg.R) + jitter),
 					G: clampU8(int(fg.G) + jitter),

@@ -1,9 +1,13 @@
 {
   "name": "Image MCP Development",
-  "build": {
-    "dockerfile": "Dockerfile",
-    "context": ".."
+  "dockerComposeFile": ["docker-compose.yml", "docker-compose.override.yml"],
+  "service": "dev",
+  "workspaceFolder": "/workspace",
+  "containerEnv": {
+    "LANG": "en_US.UTF-8",
+    "LC_ALL": "en_US.UTF-8"
   },
+  "initializeCommand": "test -f .devcontainer/docker-compose.override.yml || echo 'services: {}' > .devcontainer/docker-compose.override.yml",
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {},
     "ghcr.io/devcontainers/features/node:1": {
@@ -37,16 +41,7 @@
       }
     }
   },
-  "postCreateCommand": "go mod download && go install golang.org/x/tools/gopls@latest && go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest",
+  "postCreateCommand": "sudo mkdir -p /Users/stephen && sudo ln -sfn /opt/container-tools /Users/stephen/container-tools; go mod download || true; go install golang.org/x/tools/gopls@v0.21.1 || true; go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest || true; npm install -g @modelcontextprotocol/server-filesystem || true; curl -fsSL https://claude.ai/install.sh | bash || true; grep -q '$HOME/.local/bin' ~/.bashrc 2>/dev/null || echo 'export PATH=\"$HOME/.local/bin:$PATH\"' >> ~/.bashrc; export PATH=\"$HOME/.local/bin:$PATH\"; claude --update || true;",
   "remoteUser": "vscode",
-  "mounts": [
-    "source=${localWorkspaceFolder}/testdata,target=/images/testdata,type=bind",
-    "source=${localEnv:HOME}/Pictures,target=/images/pictures,type=bind,readonly",
-    "source=${localEnv:HOME}/Downloads,target=/images/downloads,type=bind,readonly"
-  ],
-  "runArgs": ["--init"],
-  "forwardPorts": [],
-  "containerEnv": {
-    "IMAGE_MCP_LOG_LEVEL": "debug"
-  }
+  "forwardPorts": []
 }

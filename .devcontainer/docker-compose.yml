@@ -1,0 +1,17 @@
+# Devcontainer compose for Image-Tools-MCP (committed; portable mounts only).
+# Per-machine mounts (.claude, container-tools, .ssh) go in
+# docker-compose.override.yml (gitignored). See docker-compose.override.yml.example.
+services:
+  dev:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    init: true
+    volumes:
+      - ..:/workspace:cached
+      - ../testdata:/images/testdata
+      - ${HOME}/Pictures:/images/pictures:ro
+      - ${HOME}/Downloads:/images/downloads:ro
+    environment:
+      - IMAGE_MCP_LOG_LEVEL=debug
+    command: sleep infinity

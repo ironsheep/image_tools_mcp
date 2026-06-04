@@ -1,0 +1,21 @@
+# =============================================================
+# Local mounts override (NOT committed to git)
+# =============================================================
+# Copy this file to docker-compose.override.yml and customize
+# the paths below for your machine.
+#
+# If docker-compose.override.yml doesn't exist, an empty one is
+# auto-created by initializeCommand so the container still starts.
+# =============================================================
+services:
+  dev:
+    volumes:
+      # Claude Code config (auth, history, MCP settings)
+      # NOTE: target must match remoteUser (devcontainer.json -> remoteUser: "vscode")
+      - ${HOME}/.claude:/home/vscode/.claude
+      # Container tools (MCP servers: todo-mcp, p2kb-mcp, image-tools-mcp)
+      - /path/to/container-tools:/opt/container-tools
+      # SSH: no mount needed. VS Code Dev Containers forwards the host SSH
+      # agent automatically via SSH_AUTH_SOCK, so `git push` over SSH works
+      # without copying any keys into the container. Make sure your key is
+      # loaded on the host with `ssh-add` before opening the container.

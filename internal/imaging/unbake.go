@@ -19,27 +19,27 @@ import (
 // Pixel (x, y) belongs to a "light" cell when ((x-OriginX)/Period + (y-OriginY)/Period) % 2 == LightParity.
 // Color1 is the color of light cells; Color2 is the color of dark cells.
 type CheckerInfo struct {
-	Color1       RGBColor `json:"color1"`        // light-cell color
-	Color2       RGBColor `json:"color2"`        // dark-cell color
-	Period       int      `json:"period"`        // pixels per square
-	OriginX      int      `json:"origin_x"`      // x at which cell (0,0) starts
-	OriginY      int      `json:"origin_y"`      // y at which cell (0,0) starts
-	LightParity  int      `json:"light_parity"`  // 0 or 1; cell parity that maps to Color1
-	Amplitude    int      `json:"amplitude"`     // |luma(Color1) - luma(Color2)| measured in clean corners
-	Confidence   float64  `json:"confidence"`    // 0..1, autocorrelation strength at the chosen period
+	Color1      RGBColor `json:"color1"`       // light-cell color
+	Color2      RGBColor `json:"color2"`       // dark-cell color
+	Period      int      `json:"period"`       // pixels per square
+	OriginX     int      `json:"origin_x"`     // x at which cell (0,0) starts
+	OriginY     int      `json:"origin_y"`     // y at which cell (0,0) starts
+	LightParity int      `json:"light_parity"` // 0 or 1; cell parity that maps to Color1
+	Amplitude   int      `json:"amplitude"`    // |luma(Color1) - luma(Color2)| measured in clean corners
+	Confidence  float64  `json:"confidence"`   // 0..1, autocorrelation strength at the chosen period
 }
 
 // UnbakeResult describes the reconstructed image.
 type UnbakeResult struct {
-	OutputPath          string         `json:"output_path"`
-	Width               int            `json:"width"`
-	Height              int            `json:"height"`
-	DetectedChecker     *CheckerInfo   `json:"detected_checker,omitempty"`
-	DetectedForeground  []CountedColor `json:"detected_foreground"`
-	PixelStats          UnbakeStats    `json:"pixel_stats"`
-	PreviewBase64       string         `json:"preview_base64"`
-	PreviewMimeType     string         `json:"preview_mime_type"`
-	Notes               []string       `json:"notes,omitempty"`
+	OutputPath         string         `json:"output_path"`
+	Width              int            `json:"width"`
+	Height             int            `json:"height"`
+	DetectedChecker    *CheckerInfo   `json:"detected_checker,omitempty"`
+	DetectedForeground []CountedColor `json:"detected_foreground"`
+	PixelStats         UnbakeStats    `json:"pixel_stats"`
+	PreviewBase64      string         `json:"preview_base64"`
+	PreviewMimeType    string         `json:"preview_mime_type"`
+	Notes              []string       `json:"notes,omitempty"`
 }
 
 // UnbakeStats reports per-pixel classification counts.
@@ -404,7 +404,7 @@ func luma(c RGBColor) int { return lumaInt(c.R, c.G, c.B) }
 //  2. For each candidate period P in [16, 256]:
 //     - For each cycle, average the first half and second half separately.
 //     - Score = mean absolute difference between the two halves, normalized
-//       by the strip's overall stddev.
+//     by the strip's overall stddev.
 //  3. Return the period with the highest score.
 func dominantPeriod(s []int) (int, float64) {
 	n := len(s)
@@ -439,7 +439,7 @@ func dominantPeriod(s []int) (int, float64) {
 		return 0, 0
 	}
 
-	const minPeriod = 16  // smallest typical fake-transparency square is 8 px → period 16
+	const minPeriod = 16 // smallest typical fake-transparency square is 8 px → period 16
 	maxPeriod := n / 4
 	if maxPeriod > 256 {
 		maxPeriod = 256
@@ -542,9 +542,15 @@ func clusterCornerColors(img image.Image, square int) (RGBColor, RGBColor, int, 
 		var s2R, s2G, s2B, s2Cnt int
 		for _, s := range samples {
 			if absInt(s.l-c1L) <= absInt(s.l-c2L) {
-				s1R += s.r; s1G += s.g; s1B += s.b; s1Cnt++
+				s1R += s.r
+				s1G += s.g
+				s1B += s.b
+				s1Cnt++
 			} else {
-				s2R += s.r; s2G += s.g; s2B += s.b; s2Cnt++
+				s2R += s.r
+				s2G += s.g
+				s2B += s.b
+				s2Cnt++
 			}
 		}
 		if s1Cnt == 0 || s2Cnt == 0 {
@@ -828,7 +834,7 @@ func classifyPixel(p RGBColor, x, y int, ck *CheckerInfo, fg []RGBColor, opts Un
 func bgAt(x, y int, ck *CheckerInfo) RGBColor {
 	cx := (x - ck.OriginX) / ck.Period
 	cy := (y - ck.OriginY) / ck.Period
-	parity := ((cx + cy) % 2 + 2) % 2
+	parity := ((cx+cy)%2 + 2) % 2
 	if parity == ck.LightParity {
 		return ck.Color1
 	}

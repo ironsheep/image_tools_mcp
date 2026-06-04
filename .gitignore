@@ -51,3 +51,6 @@ builds/
 internal/ocr/tessdata/*.traineddata
 DOCs/DO-NOT-USE.zip
 .DS_Store
+
+# Devcontainer local override (private mounts, machine-specific)
+.devcontainer/docker-compose.override.yml

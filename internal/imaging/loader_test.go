@@ -35,7 +35,6 @@ func createTestImage(t *testing.T, width, height int, c color.Color) string {
 	return tmpFile.Name()
 }
 
-
 func TestNewImageCache(t *testing.T) {
 	cache := NewImageCache()
 	if cache == nil {

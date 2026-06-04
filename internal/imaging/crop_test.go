@@ -153,7 +153,7 @@ func TestCropQuadrant(t *testing.T) {
 	img := createPatternImage(100, 100)
 
 	tests := []struct {
-		region      string
+		region       string
 		wantW, wantH int
 	}{
 		{"top-left", 50, 50},
@@ -215,8 +215,8 @@ func TestCropQuadrant_VerifyContent(t *testing.T) {
 	img := createPatternImage(100, 100)
 
 	tests := []struct {
-		region   string
-		wantHex  string
+		region  string
+		wantHex string
 	}{
 		{"top-left", "#FF0000"},     // red
 		{"top-right", "#00FF00"},    // green
