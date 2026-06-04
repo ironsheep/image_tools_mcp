@@ -259,3 +259,24 @@ required.
   all 15 test files across 4 packages.
 - **Failure groups: none.** Exit baseline at closeout must hold this — clean
   build, 0 warnings, 0 new failures, 0 new skips.
+
+---
+
+## Section ↔ task cross-reference
+
+Sprint tag: `static-linking` · build 1.3.0 · total estimate ~15.5h.
+
+| Plan § | Deliverable | Task | seq | est |
+| ------ | ----------- | ---- | --- | --- |
+| §1 | OCR decode-path unification (re-encode to PNG) | «#1» | 1 | 2h |
+| §2 | `Dockerfile.static` — static Leptonica + Tesseract | «#2» | 2 | 5h |
+| §3 | Makefile `dist-static` target | «#3» | 3 | 1h |
+| §4 | `release.yml` — static Linux legs, native runners | «#4» | 4 | 2h |
+| §5 | `ci.yml` — static-build regression job | «#5» | 5 | 1h |
+| §6 | Production `Dockerfile` rebuilt static (dogfood) | «#6» | 6 | 1.5h |
+| §7 | Cross-base acceptance gate (bookworm/trixie/alpine) | «#7» | 7 | 1.5h |
+| §8 | Documentation updates | «#8» | 8 | 1.5h |
+
+Dependency spine: §1 → §2 → {§3, §4, §5, §6} → §7 → §8. §1 establishes the
+lossless decode standard the §2 codec trim relies on; §2 is the build substrate
+for §3–§7; §8 documents final behavior last.
