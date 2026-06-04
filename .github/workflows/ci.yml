@@ -144,3 +144,63 @@ jobs:
           echo "$RESPONSE" | grep -q "full_text" \
             || { echo "ERROR: OCR did not return a result"; exit 1; }
           echo "OK: OCR ran against the static binary with embedded tesseract"
+
+      - name: Upload static binary for cross-base gate
+        uses: actions/upload-artifact@v4
+        with:
+          name: cross-base-binary
+          path: image-tools-mcp-static
+          retention-days: 1
+
+  # Cross-base acceptance gate (sprint definition of done): the SAME static
+  # binary must run identically on multiple, unrelated base images. Drop it into
+  # Debian bookworm, Debian trixie, and bare Alpine, and in each run ldd (static),
+  # --version, tools/list, and the OCR smoke — proving base/soname independence
+  # with no system Tesseract anywhere. A failure in any base is a hard stop.
+  cross-base:
+    name: Cross-base (${{ matrix.base }})
+    runs-on: ubuntu-latest
+    needs: static-build
+    strategy:
+      fail-fast: false
+      matrix:
+        base:
+          - debian:bookworm-slim
+          - debian:trixie-slim
+          - alpine:3.20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download static binary
+        uses: actions/download-artifact@v4
+        with:
+          name: cross-base-binary
+
+      - name: Run acceptance checks in ${{ matrix.base }}
+        run: |
+          chmod +x image-tools-mcp-static
+          docker run --rm \
+            -v "$(pwd)/image-tools-mcp-static:/work/bin:ro" \
+            -v "$(pwd)/testdata/simple_diagram.png:/work/test.png:ro" \
+            "${{ matrix.base }}" sh -c '
+              set -e
+              echo "### ldd (must report static — glibc and musl phrase it differently)"
+              ldd /work/bin 2>&1 | grep -E "not a dynamic executable|Not a valid dynamic program|statically linked" \
+                || { echo "ERROR: binary is not static in ${{ matrix.base }}"; ldd /work/bin; exit 1; }
+
+              echo "### --version (must exit 0)"
+              /work/bin --version
+
+              echo "### tools/list (must return image_load)"
+              echo "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}" | /work/bin | grep -q image_load \
+                || { echo "ERROR: tools/list did not return image_load"; exit 1; }
+
+              echo "### OCR smoke (embedded tesseract, no system Tesseract)"
+              R=$(echo "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"image_ocr_full\",\"arguments\":{\"path\":\"/work/test.png\",\"language\":\"eng\"}}}" | /work/bin | head -50)
+              echo "$R"
+              echo "$R" | grep -q "tesseract not found" && { echo "ERROR: OCR could not find embedded tesseract"; exit 1; }
+              echo "$R" | grep -q "full_text" || { echo "ERROR: OCR did not return a result"; exit 1; }
+
+              echo "OK: all checks passed in ${{ matrix.base }}"
+            '
