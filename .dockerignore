@@ -1,0 +1,24 @@
+# Build-context hygiene for Dockerfile / Dockerfile.static (both COPY . .).
+# Keep the context lean and free of stale host artifacts.
+#
+# NOTE: internal/ocr/tessdata/ is intentionally NOT excluded. //go:embed needs
+# the training data at build time, and the production Dockerfile supplies it via
+# COPY (it does not yet run ensure-tessdata.sh — that is Dockerfile.static's job,
+# and rebasing the production image on the static build is §6). Revisit then.
+
+# Version control
+.git
+.gitignore
+
+# Local dev binaries from `make build` / `make install`
+/image-mcp
+/image-tools-mcp
+
+# Build output
+dist/
+
+# Logs and OS/editor cruft
+*.log
+.vscode/
+.idea/
+.DS_Store

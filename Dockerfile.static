@@ -1,0 +1,102 @@
+# syntax=docker/dockerfile:1
+#
+# Dockerfile.static — fully static, zero-dependency Linux binary.
+#
+# Leptonica and Tesseract are source-built as static archives and linked into
+# the Go binary, so the result has no shared-library or system-Tesseract
+# dependency at runtime. Leptonica is built libpng-only: §1 routes OCR through
+# the Go image loader and hands Tesseract in-memory PNG bytes, so Leptonica
+# never needs jpeg/tiff/gif/webp/openjpeg codecs.
+#
+# Build and export just the binary:
+#   docker buildx build -f Dockerfile.static --target export-binaries \
+#     -o type=local,dest=dist/static .
+
+ARG GO_VERSION=1.25
+ARG LEPTONICA_VERSION=1.85.0
+ARG TESSERACT_VERSION=5.5.0
+
+# ---------------------------------------------------------------------------
+# Stage: builder — static system libs + static Go binary
+# ---------------------------------------------------------------------------
+FROM golang:${GO_VERSION}-alpine AS builder
+
+ARG LEPTONICA_VERSION
+ARG TESSERACT_VERSION
+
+# Build toolchain plus static archives for libpng/zlib (from Alpine). Leptonica
+# and Tesseract are source-built static below. autoconf-archive supplies the
+# AX_* macros Tesseract's autogen.sh needs.
+RUN apk add --no-cache \
+    build-base \
+    git \
+    bash \
+    curl \
+    autoconf \
+    automake \
+    autoconf-archive \
+    libtool \
+    pkgconf \
+    zlib-dev zlib-static \
+    libpng-dev libpng-static \
+    linux-headers
+
+# --- Static Leptonica (libpng + zlib only) ---------------------------------
+RUN curl -fsSL "https://github.com/DanBloomberg/leptonica/releases/download/${LEPTONICA_VERSION}/leptonica-${LEPTONICA_VERSION}.tar.gz" -o /tmp/leptonica.tar.gz \
+    && tar -xzf /tmp/leptonica.tar.gz -C /tmp \
+    && cd /tmp/leptonica-${LEPTONICA_VERSION} \
+    && ./configure \
+        --disable-shared --enable-static \
+        --with-libpng --with-zlib \
+        --without-libjpeg --without-libtiff --without-giflib \
+        --without-libwebp --without-libopenjpeg \
+        --prefix=/usr/local \
+    && make -j"$(nproc)" \
+    && make install \
+    # gosseract links -lleptonica; the autotools build installs liblept.a.
+    && if [ ! -f /usr/local/lib/libleptonica.a ]; then \
+         ln -s liblept.a /usr/local/lib/libleptonica.a; \
+       fi
+
+# --- Static Tesseract (LSTM-only, no legacy engine, no OpenMP) --------------
+ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
+RUN curl -fsSL "https://github.com/tesseract-ocr/tesseract/archive/refs/tags/${TESSERACT_VERSION}.tar.gz" -o /tmp/tesseract.tar.gz \
+    && tar -xzf /tmp/tesseract.tar.gz -C /tmp \
+    && cd /tmp/tesseract-${TESSERACT_VERSION} \
+    && ./autogen.sh \
+    && ./configure \
+        --disable-shared --enable-static \
+        --disable-legacy --disable-openmp \
+        --prefix=/usr/local \
+    && make -j"$(nproc)" \
+    && make install
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+# Fetch embedded training data before the build so //go:embed resolves.
+RUN bash scripts/ensure-tessdata.sh
+
+ARG VERSION=dev
+ARG BUILD_TIME=unknown
+
+# Fully static CGO build. gosseract injects "-lleptonica -ltesseract" in the
+# wrong order for static resolution and omits the transitive codec/runtime
+# deps, so CGO_LDFLAGS wraps the archives in a link group and adds libpng/zlib/
+# libstdc++/libm. -extldflags -static makes the external linker resolve them
+# all from the static archives.
+ENV CGO_LDFLAGS="-L/usr/local/lib -Wl,--start-group -ltesseract -lleptonica -lpng16 -lz -lstdc++ -lm -Wl,--end-group"
+RUN CGO_ENABLED=1 GOOS=linux go build \
+    -tags cgo \
+    -ldflags="-s -w -linkmode external -extldflags '-static -static-libstdc++ -static-libgcc' -X 'main.Version=${VERSION}' -X 'main.BuildTime=${BUILD_TIME}'" \
+    -o /image-mcp ./cmd/image-mcp
+
+# ---------------------------------------------------------------------------
+# Stage: export-binaries — carry just the binary for buildx -o type=local
+# ---------------------------------------------------------------------------
+FROM scratch AS export-binaries
+COPY --from=builder /image-mcp /image-tools-mcp
