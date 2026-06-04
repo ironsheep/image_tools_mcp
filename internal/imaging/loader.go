@@ -75,6 +75,24 @@ func (c *ImageCache) Load(path string) (image.Image, error) {
 	}
 	c.mu.RUnlock()
 
+	img, err := Decode(path)
+	if err != nil {
+		return nil, err
+	}
+
+	c.mu.Lock()
+	c.images[path] = img
+	c.mu.Unlock()
+
+	return img, nil
+}
+
+// Decode opens and decodes an image file using the registered codecs
+// (PNG, JPEG, GIF). It is the single decode entry point shared by the cache
+// and by callers that need a decoded image without caching it (e.g. OCR
+// re-encoding to PNG). Centralizing decode here guarantees every tool reasons
+// about the same pixels from the same codec set.
+func Decode(path string) (image.Image, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open image: %w", err)
@@ -85,11 +103,6 @@ func (c *ImageCache) Load(path string) (image.Image, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode image: %w", err)
 	}
-
-	c.mu.Lock()
-	c.images[path] = img
-	c.mu.Unlock()
-
 	return img, nil
 }
 

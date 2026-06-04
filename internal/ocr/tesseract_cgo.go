@@ -8,6 +8,7 @@
 package ocr
 
 import (
+	"bytes"
 	"embed"
 	"fmt"
 	"image"
@@ -17,6 +18,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/ironsheep/image-tools-mcp/internal/imaging"
 	"github.com/otiai10/gosseract/v2"
 )
 
@@ -144,6 +146,44 @@ type TextRegionBox struct {
 	Confidence float64 `json:"confidence"`
 }
 
+// loadImageAsPNG decodes an image file through the shared imaging decode — the
+// same codec set every other tool uses — and re-encodes it to lossless PNG
+// bytes for Tesseract.
+//
+// Routing OCR through this guarantees two things:
+//   - Leptonica only ever receives PNG, never any other codec. This is what
+//     lets the static build link libpng alone (no libjpeg/tiff/gif/webp).
+//   - OCR reasons about the exact pixels the measurement and color tools see,
+//     because every tool decodes via imaging.Decode.
+//
+// PNG is lossless: the image is never downsampled and never re-encoded to a
+// lossy format.
+func loadImageAsPNG(imagePath string) ([]byte, error) {
+	img, err := imaging.Decode(imagePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		return nil, fmt.Errorf("failed to encode image as PNG: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+// setClientImage decodes imagePath to lossless PNG bytes and hands them to the
+// Tesseract client, so Leptonica only ever sees PNG.
+func setClientImage(client *gosseract.Client, imagePath string) error {
+	pngBytes, err := loadImageAsPNG(imagePath)
+	if err != nil {
+		return fmt.Errorf("failed to load image: %w", err)
+	}
+	if err := client.SetImageFromBytes(pngBytes); err != nil {
+		return fmt.Errorf("failed to set image: %w", err)
+	}
+	return nil
+}
+
 // ExtractText performs OCR on an entire image file and returns recognized text.
 func ExtractText(imagePath string, language string) (*OCRResult, error) {
 	tessdataPath, err := ensureTessdata()
@@ -159,8 +199,8 @@ func ExtractText(imagePath string, language string) (*OCRResult, error) {
 		return nil, fmt.Errorf("failed to set tessdata path: %w", err)
 	}
 
-	if err := client.SetImage(imagePath); err != nil {
-		return nil, fmt.Errorf("failed to set image: %w", err)
+	if err := setClientImage(client, imagePath); err != nil {
+		return nil, err
 	}
 
 	if err := client.SetLanguage(language); err != nil {
@@ -265,8 +305,8 @@ func DetectTextRegions(imagePath string, minConfidence float64) (*DetectTextRegi
 		return nil, fmt.Errorf("failed to set tessdata path: %w", err)
 	}
 
-	if err := client.SetImage(imagePath); err != nil {
-		return nil, fmt.Errorf("failed to set image: %w", err)
+	if err := setClientImage(client, imagePath); err != nil {
+		return nil, err
 	}
 
 	boxes, err := client.GetBoundingBoxes(gosseract.RIL_WORD)
