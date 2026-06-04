@@ -96,7 +96,7 @@ Once configured, Claude can use tools like:
 
 ## Platform Notes
 
-**Linux (AMD64 and ARM64)** includes embedded Tesseract OCR - full functionality with no additional setup.
+**Linux (AMD64 and ARM64)** includes embedded Tesseract OCR - full functionality with no additional setup. The Linux binaries are **fully static** (zero shared-library dependencies, OCR data embedded): a single binary runs identically on any Linux base image — Debian, Ubuntu, bare Alpine, or a `scratch`/distroless container — with no system Tesseract or Leptonica to install.
 
 **macOS and Windows** use CLI fallback for OCR. Install Tesseract for full OCR support:
 - macOS: `brew install tesseract` or `sudo port install tesseract`

@@ -42,6 +42,8 @@ See [MCP Client Configuration](#mcp-client-configuration) below.
 
 For full OCR functionality on macOS and Windows, install Tesseract OCR. Linux binaries (both AMD64 and ARM64) include embedded OCR and do not require Tesseract installation.
 
+> **Linux binaries are fully static.** As of build 1.3.0 the Linux binaries link Tesseract and Leptonica statically and embed the OCR training data, so they have **zero shared-library dependencies**. The same binary runs unchanged on any Linux base — Debian, Ubuntu, bare Alpine, or a `scratch`/distroless container — with no `tesseract`, `libleptonica`, or `TESSDATA_PREFIX` required. Pick any base image you like; nothing needs to be installed for OCR to work.
+
 ### macOS
 
 **Using Homebrew** (recommended):

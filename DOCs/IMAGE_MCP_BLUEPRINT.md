@@ -1067,6 +1067,18 @@ func DominantColors(img image.Image, count int, region *image.Rectangle) ([]Colo
 
 ## Dockerfile
 
+> **Build/linking note (as shipped, build 1.3.0).** The reference Dockerfile below is the
+> original dynamic-CGO design and is kept for illustration. The project now ships a **fully
+> static** Linux binary: `Dockerfile.static` source-builds static Leptonica (libpng-only) and
+> Tesseract (LSTM-only) inside Alpine/musl, links the binary with
+> `-linkmode external -extldflags "-static -static-libstdc++ -static-libgcc"`, and embeds the
+> tessdata via `//go:embed`. The result has zero shared-library dependencies and runs on any
+> Linux base. The production container image is that same static binary —
+> `Dockerfile.static --target runtime` — so its runtime layer needs **no** `tesseract-ocr`,
+> `tesseract-ocr-data-eng`, or Leptonica. `make docker` and `docker-compose` build this static
+> image; the standalone dynamic `Dockerfile` shown here has been removed from the repo. See
+> [`PROPOSAL_ALPINE_STATIC_LINKING.md`](./PROPOSAL_ALPINE_STATIC_LINKING.md) for the rationale.
+
 ```dockerfile
 # Build stage
 FROM golang:1.23-alpine AS builder

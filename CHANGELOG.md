@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-06-04
+
+### Changed
+
+- **Linux release binaries (AMD64 and ARM64) are now fully static.** They link Tesseract and Leptonica as static archives and carry the OCR training data via `//go:embed`, so a Linux binary has **zero shared-library dependencies** and needs no system Tesseract, Leptonica, or `TESSDATA_PREFIX`. `ldd` reports "not a dynamic executable". The same binary now runs identically on any Linux base — Debian bookworm/trixie, bare Alpine, or any future fleet base — eliminating the soname/ABI-drift class of failures that previously required compatibility symlinks. Built per architecture on native runners via the new `Dockerfile.static` (no cross-compiled CGO, no qemu in release).
+- **OCR decode path unified through the shared Go image loader.** Both OCR entry points now load the image through the same cached loader as every other tool and hand Tesseract in-memory **lossless PNG** bytes (`SetImageFromBytes`) instead of a file path. Leptonica therefore only ever decodes PNG, which is what makes the libpng-only static build safe; OCR also now reasons about the exact pixels the measurement/color tools use, and gains every input format the loader supports. PNG re-encode is lossless — no downsampling, no lossy round-trip.
+- **Production container image rebuilt on the static binary (dogfood).** The shipped image is now built from the same `Dockerfile.static` builder as the release binary (`--target runtime`). Its runtime layer drops `tesseract-ocr`, `tesseract-ocr-data-eng`, Leptonica, `nodejs`, and `npm` (none were used by the Go binary), producing a much smaller image. `make docker` and `docker-compose` build this static image; the old dynamic `Dockerfile` has been removed.
+
+### Added
+
+- **`Dockerfile.static`** — multi-stage Alpine build that source-builds static Leptonica (libpng-only) and Tesseract (LSTM-only), links a fully static CGO binary, and exposes both an `export-binaries` stage (for release/CI extraction) and a `runtime` stage (the production image).
+- **`make dist-static`** target — builds the static Linux binary for the host architecture (opt-in cross-arch via `STATIC_PLATFORM=linux/<arch>`).
+- **CI static gates** — a `static-build` job asserts the binary is static and OCR works on every PR, and a `cross-base` matrix proves the same binary runs identically in Debian bookworm, Debian trixie, and bare Alpine.
+
+[1.3.0]: https://github.com/ironsheep/image_tools_mcp/releases/tag/v1.3.0
+
 ## [1.2.11] - 2026-05-03
 
 ### Fixed

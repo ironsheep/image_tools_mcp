@@ -18,25 +18,39 @@ Each platform runner builds tesseract and dependencies as static libraries, then
 
 ### Linux (ubuntu-latest / ubuntu-24.04-arm)
 
-**Status**: ✅ Implemented
+**Status**: ✅ **Implemented for real in build 1.3.0** (2026-06-04).
+
+> **History:** earlier revisions of this doc marked Linux "✅ Implemented" while the
+> shipped release binaries were still **dynamically linked** (the apt + `-static`
+> sketch below never produced a truly static binary — it linked the fat distro
+> Leptonica and left ~50 shared-library dependencies). That gap is what
+> [`PROPOSAL_ALPINE_STATIC_LINKING.md`](./PROPOSAL_ALPINE_STATIC_LINKING.md)
+> diagnosed and fixed.
+
+The real implementation does **not** use apt/glibc. It source-builds static
+Leptonica (libpng-only) and Tesseract (LSTM-only) inside Alpine/musl and links a
+fully static CGO binary with embedded tessdata — `ldd` → "not a dynamic
+executable", and the same binary runs on any Linux base. See:
+
+- **`Dockerfile.static`** — the canonical static builder (`export-binaries` stage
+  for release/CI extraction, `runtime` stage for the production image).
+- **`make dist-static`** — host-arch static build.
+- **`.github/workflows/release.yml`** — both Linux legs build static, natively per
+  arch, with `ldd`/`file` static assertions.
+- **`.github/workflows/ci.yml`** — `static-build` and `cross-base`
+  (bookworm/trixie/alpine) regression gates.
+- **`PROPOSAL_ALPINE_STATIC_LINKING.md`** — the design and rationale (including the
+  §1 OCR decode-path refinement that enabled the libpng-only trim).
+
+The superseded apt/glibc sketch (kept for historical contrast — it does **not**
+yield a static binary):
 
 ```yaml
-- name: Install static build dependencies
+# SUPERSEDED — produced a dynamic binary, not used.
+- name: Install build dependencies
   run: |
     sudo apt-get update
-    sudo apt-get install -y \
-      libtesseract-dev \
-      libleptonica-dev \
-      libpng-dev \
-      libjpeg-dev \
-      libtiff-dev \
-      libgif-dev \
-      libwebp-dev
-```
-
-Build with:
-```bash
-CGO_ENABLED=1 CGO_LDFLAGS="-static -ltesseract -llept ..." go build
+    sudo apt-get install -y libtesseract-dev libleptonica-dev
 ```
 
 ### macOS (macos-latest for arm64, macos-13 for x86_64)

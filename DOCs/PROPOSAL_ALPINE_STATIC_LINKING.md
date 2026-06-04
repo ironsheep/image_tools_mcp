@@ -1,9 +1,17 @@
 # Proposal: Alpine/musl Static Linking with Trimmed Codecs
 
-**Status:** Proposed — to be executed *after* the container base-image upgrade
+**Status:** ✅ **Implemented** in build 1.3.0 (2026-06-04). Approach A was executed as specified; see the implementation note below for the one refinement the plan did not anticipate.
 **Author:** drafted with Claude (session 2026-06-03)
 **Scope:** Linux build targets only (the Docker fleet). macOS/Windows are explicitly out of scope — see [Non-goals](#non-goals).
 **Supersedes (Linux portion of):** [`TODO_STATIC_OCR_ALL_PLATFORMS.md`](./TODO_STATIC_OCR_ALL_PLATFORMS.md)
+
+> ### Implementation note (build 1.3.0)
+>
+> Delivered as proposed (Approach A — Alpine/musl, source-built static Leptonica + Tesseract, embedded tessdata preserved), with **one refinement the proposal did not foresee.** The proposal assumed the codec trim was essentially free — drop to `--with-libpng --with-libjpeg` and move on (§3, §7.1). In practice the trim was **not** safe until the OCR decode path was changed first: both OCR entry points previously passed Tesseract a *file path*, so Leptonica opened and decoded the file itself and OCR's format support was coupled to Leptonica's codec set. Trimming codecs there would have silently dropped JPEG/GIF/etc. OCR input.
+>
+> The fix (sprint §1) routes OCR through the shared Go image loader and hands Tesseract in-memory **lossless PNG** bytes via `SetImageFromBytes`. Now Leptonica only ever decodes PNG, so the static build trims all the way to **libpng-only** (even tighter than the proposal's libpng+libjpeg) with no loss of OCR input formats — the Go loader supplies them. This is why the realized codec surface is ~5 libraries, not the ~6 estimated here.
+>
+> Realized deliverables: `Dockerfile.static` (`export-binaries` + `runtime` stages), `make dist-static`, static release legs (native per-arch, no qemu), CI `static-build` + `cross-base` gates (bookworm/trixie/alpine), and the production image rebuilt on the static binary. The symlink stopgap (§1.1) is retired.
 
 ---
 
