@@ -237,3 +237,25 @@ dynamic reality.
 Research complete; no open questions. Decisions locked: OCR re-encode to PNG ·
 native per-arch builds (least emulation) · Docker image built static (dogfood) ·
 local dynamic build unchanged. Ready for `sprint-start`.
+
+---
+
+## Sprint-start record — 2026-06-04
+
+**Build number:** 1.3.0 (minor bump from 1.2.11; committed in `VERSION`).
+
+**Working-tree audit (Step 2):** clean — no uncommitted edits, no untracked
+files in the sprint blast radius. Foundation committed; 7 commits ahead of
+`origin/main` at start.
+
+**tracking-readiness entry check (Step 3):** READY. todo-mcp tasks: 0 (empty
+board); context: 0 keys; `MEMORY.md`: 1 line. Nothing to archive or prune.
+
+**Entry baseline (Step 4 — baseline-health):** clean and green, no decisions
+required.
+- Build (`go build ./...` + `go vet ./...`): clean, 0 warnings.
+- gofmt: clean. golangci-lint (`make lint`): clean, 0 findings.
+- Tests (`make test`): all pass, **0 skips**; runner (`go test ./...`) covers
+  all 15 test files across 4 packages.
+- **Failure groups: none.** Exit baseline at closeout must hold this — clean
+  build, 0 warnings, 0 new failures, 0 new skips.
