@@ -61,11 +61,15 @@ clean:
 	rm -rf dist/
 	docker rmi image-tools-mcp:latest image-tools-mcp:$(VERSION) 2>/dev/null || true
 
-# Build Docker image
+# Build Docker image (production runtime = the static binary, dogfooded:
+# same builder as the release/CI static binary, via Dockerfile.static).
 docker:
 	docker build \
+		-f Dockerfile.static \
+		--target runtime \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg BUILD_TIME="$(BUILD_TIME)" \
+		--build-arg GIT_COMMIT=$(GIT_COMMIT) \
 		-t image-tools-mcp:$(VERSION) \
 		-t image-tools-mcp:latest \
 		.

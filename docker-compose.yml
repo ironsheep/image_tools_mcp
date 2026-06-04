@@ -2,10 +2,12 @@ services:
   image-tools-mcp:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.static
+      target: runtime
       args:
         VERSION: ${VERSION:-dev}
         BUILD_TIME: ${BUILD_TIME:-unknown}
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
     image: image-tools-mcp:${VERSION:-latest}
     container_name: image-tools-mcp
     stdin_open: true

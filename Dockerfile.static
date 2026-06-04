@@ -103,3 +103,32 @@ RUN CGO_ENABLED=1 GOOS=linux go build \
 # ---------------------------------------------------------------------------
 FROM scratch AS export-binaries
 COPY --from=builder /image-mcp /image-tools-mcp
+
+# ---------------------------------------------------------------------------
+# Stage: runtime — the production container image (dogfood).
+#
+# Built from the SAME static `builder` above, so the image we ship is the image
+# we test. The binary is fully static with embedded tessdata, so the runtime
+# needs no Tesseract, no Leptonica, no language packs — and no Node.js/npm
+# (those only ever served the devcontainer's separate filesystem MCP server,
+# never this Go binary). No ca-certificates either: the server processes local
+# images over stdio and makes no outbound TLS calls. Alpine is kept purely as a
+# tiny base that provides a non-root user and a shell for debugging.
+#
+# Build:  docker build -f Dockerfile.static --target runtime -t image-tools-mcp .
+# ---------------------------------------------------------------------------
+FROM alpine:3.20 AS runtime
+
+# Non-root user
+RUN adduser -D -g '' appuser
+
+WORKDIR /app
+
+COPY --from=builder /image-mcp /app/image-mcp
+
+# Images directory for mounting host image folders read-only.
+RUN mkdir -p /images && chown appuser:appuser /images
+
+USER appuser
+
+ENTRYPOINT ["/app/image-mcp"]
