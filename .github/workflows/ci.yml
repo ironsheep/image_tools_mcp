@@ -27,11 +27,18 @@ jobs:
       - name: Download tessdata for embedding
         run: ./scripts/ensure-tessdata.sh
 
+      # Install via `go install` (not golangci-lint-action) so the linter is
+      # compiled with this job's Go 1.25 toolchain. The action downloads prebuilt
+      # binaries, and the v1.64.x prebuilt is built with Go 1.24 — golangci-lint
+      # hard-errors when its build-Go is older than the go.mod target (1.25).
+      # Building from source with Go 1.25 satisfies that guard, matching local
+      # `make lint`. Pinned for reproducibility. (A deliberate golangci-lint v2
+      # migration is tracked separately.)
       - name: Install golangci-lint
-        uses: golangci/golangci-lint-action@v4
-        with:
-          version: latest
-          args: --timeout=5m
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
+
+      - name: Run golangci-lint
+        run: golangci-lint run --timeout=5m ./...
 
   test:
     name: Test
