@@ -271,22 +271,8 @@ func ExtractTextFromRegion(img image.Image, x1, y1, x2, y2 int, language string)
 		}
 	}
 
-	// Save to temporary file
-	tmpFile, err := os.CreateTemp("", "ocr-region-*.png")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp file: %w", err)
-	}
-	tmpPath := tmpFile.Name()
-	defer os.Remove(tmpPath)
-
-	if err := png.Encode(tmpFile, cropped); err != nil {
-		tmpFile.Close()
-		return nil, fmt.Errorf("failed to encode temp image: %w", err)
-	}
-	tmpFile.Close()
-
-	// Perform OCR
-	result, err := ExtractText(tmpPath, language)
+	// Perform OCR on the crop
+	result, err := ExtractTextFromImage(cropped, language)
 	if err != nil {
 		return nil, err
 	}
@@ -300,6 +286,38 @@ func ExtractTextFromRegion(img image.Image, x1, y1, x2, y2 int, language string)
 	}
 
 	return result, nil
+}
+
+// ExtractTextFromImage performs OCR on an in-memory image.
+//
+// This is the in-memory counterpart of ExtractText and the primitive that
+// ExtractTextFromRegion builds on. The Tesseract CLI used by this build can
+// only read a file path, so the image is written to a temporary PNG and OCR'd
+// from there; the temp file is inherent to the CLI fallback. (On Linux/CGO
+// builds the equivalent function drives Tesseract entirely in memory.)
+//
+// Parameters:
+//   - img: The image to OCR (already loaded/decoded in memory).
+//   - language: Tesseract language code (e.g., "eng").
+//
+// Returns:
+//   - *OCRResult: Recognized text and word-level bounding boxes.
+//   - error: Non-nil if the temp file cannot be written or OCR fails.
+func ExtractTextFromImage(img image.Image, language string) (*OCRResult, error) {
+	tmpFile, err := os.CreateTemp("", "ocr-image-*.png")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	defer os.Remove(tmpPath)
+
+	if err := png.Encode(tmpFile, img); err != nil {
+		tmpFile.Close()
+		return nil, fmt.Errorf("failed to encode temp image: %w", err)
+	}
+	tmpFile.Close()
+
+	return ExtractText(tmpPath, language)
 }
 
 // DetectTextRegions finds text regions in an image without performing full OCR.

@@ -163,7 +163,12 @@ func loadImageAsPNG(imagePath string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	return encodeImageAsPNG(img)
+}
 
+// encodeImageAsPNG encodes an in-memory image to lossless PNG bytes for
+// Tesseract — no downsampling, no lossy re-encode.
+func encodeImageAsPNG(img image.Image) ([]byte, error) {
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
 		return nil, fmt.Errorf("failed to encode image as PNG: %w", err)
@@ -184,8 +189,11 @@ func setClientImage(client *gosseract.Client, imagePath string) error {
 	return nil
 }
 
-// ExtractText performs OCR on an entire image file and returns recognized text.
-func ExtractText(imagePath string, language string) (*OCRResult, error) {
+// runOCR runs full text recognition over already-PNG-encoded image bytes and
+// returns the recognized text plus word-level boxes. Every full-OCR entry point
+// (ExtractText from a path, ExtractTextFromImage from memory) funnels here, so
+// Tesseract is driven identically regardless of where the pixels came from.
+func runOCR(pngBytes []byte, language string) (*OCRResult, error) {
 	tessdataPath, err := ensureTessdata()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize tessdata: %w", err)
@@ -194,13 +202,12 @@ func ExtractText(imagePath string, language string) (*OCRResult, error) {
 	client := gosseract.NewClient()
 	defer client.Close()
 
-	// Set tessdata path
 	if err := client.SetTessdataPrefix(tessdataPath); err != nil {
 		return nil, fmt.Errorf("failed to set tessdata path: %w", err)
 	}
 
-	if err := setClientImage(client, imagePath); err != nil {
-		return nil, err
+	if err := client.SetImageFromBytes(pngBytes); err != nil {
+		return nil, fmt.Errorf("failed to set image: %w", err)
 	}
 
 	if err := client.SetLanguage(language); err != nil {
@@ -236,6 +243,27 @@ func ExtractText(imagePath string, language string) (*OCRResult, error) {
 	}, nil
 }
 
+// ExtractText performs OCR on an entire image file and returns recognized text.
+func ExtractText(imagePath string, language string) (*OCRResult, error) {
+	pngBytes, err := loadImageAsPNG(imagePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load image: %w", err)
+	}
+	return runOCR(pngBytes, language)
+}
+
+// ExtractTextFromImage performs OCR on an in-memory image that the caller has
+// already decoded (e.g. via the shared loader / image cache). The image is
+// encoded once to lossless PNG and handed straight to Tesseract — no temp file
+// and no second decode. This is the in-memory counterpart of ExtractText.
+func ExtractTextFromImage(img image.Image, language string) (*OCRResult, error) {
+	pngBytes, err := encodeImageAsPNG(img)
+	if err != nil {
+		return nil, err
+	}
+	return runOCR(pngBytes, language)
+}
+
 // ExtractTextFromRegion performs OCR on a specific rectangular region of an image.
 func ExtractTextFromRegion(img image.Image, x1, y1, x2, y2 int, language string) (*OCRResult, error) {
 	// Clamp bounds
@@ -261,21 +289,8 @@ func ExtractTextFromRegion(img image.Image, x1, y1, x2, y2 int, language string)
 		}
 	}
 
-	// Save to temp file
-	tmpFile, err := os.CreateTemp("", "ocr-region-*.png")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp file: %w", err)
-	}
-	tmpPath := tmpFile.Name()
-	defer os.Remove(tmpPath)
-
-	if err := png.Encode(tmpFile, cropped); err != nil {
-		tmpFile.Close()
-		return nil, fmt.Errorf("failed to encode temp image: %w", err)
-	}
-	tmpFile.Close()
-
-	result, err := ExtractText(tmpPath, language)
+	// OCR the crop straight from memory — no temp file, no second decode.
+	result, err := ExtractTextFromImage(cropped, language)
 	if err != nil {
 		return nil, err
 	}
