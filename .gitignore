@@ -57,3 +57,10 @@ DOCs/DO-NOT-USE.zip
 
 # Completed sprint plans are moved here and intentionally not tracked
 DOCs/plans/archive/
+
+# todo-mcp local task archive (machine-local tooling state)
+/tasks/
+
+# Runtime tessdata the binary self-extracts next to its CWD when run from the
+# repo root (e.g. local OCR smoke tests); the embedded copy lives under internal/ocr/
+/tessdata/
